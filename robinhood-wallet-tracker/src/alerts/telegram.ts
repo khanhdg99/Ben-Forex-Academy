@@ -42,7 +42,7 @@ function registerCommands(bot: Bot) {
     }
     const lines = clusters
       .slice(0, 25)
-      .map((c) => `${c.sourceAddress} — funded ${c.walletCount} fresh wallet(s)`);
+      .map((c) => `${c.sourceAddress} — ${c.walletCount} wallet(s), match: ${c.matchType}`);
     await ctx.reply(lines.join("\n"));
   });
 }
@@ -82,10 +82,21 @@ export async function sendWatchlistReactivationAlert(wallet: string, activity: s
   await sendText(text);
 }
 
-/** A funding source has just fanned out to >= FANOUT_MIN_WALLETS fresh burner wallets. */
-export async function sendClusterAlert(sourceAddress: string, memberWallets: string[]) {
+/** A funding source has just fanned out to >= FANOUT_MIN_WALLETS wallets in one tight burst. */
+export async function sendClusterAlert(
+  sourceAddress: string,
+  memberWallets: string[],
+  matchType: "fresh" | "amount" | "fresh+amount",
+) {
+  const reason =
+    matchType === "fresh"
+      ? "toàn ví mới toanh (nonce 0)"
+      : matchType === "amount"
+        ? "cùng nhận một khoản tiền gần giống nhau, sát giờ nhau (có thể không phải ví mới)"
+        : "vừa ví mới toanh, vừa cùng nhận một khoản tiền gần giống nhau";
   const lines = [
-    `🧩 *Wallet cluster detected* — 1 ví bơm tiền cho ${memberWallets.length} ví mới toanh`,
+    `🧩 *Wallet cluster detected* — 1 ví bơm tiền cho ${memberWallets.length} ví trong 1 đợt sát giờ nhau`,
+    `Dấu hiệu: ${reason}`,
     `Nguồn: \`${sourceAddress}\` (${explorerLink(sourceAddress)})`,
     "",
     "Ví con:",

@@ -20,10 +20,25 @@ const envSchema = z.object({
   ALERT_SCORE_THRESHOLD: z.coerce.number().default(60),
 
   // Funding fan-out / wallet cluster detection (dev sybil wallets or
-  // multi-wallet snipers funding a batch of brand-new burner wallets).
-  FANOUT_WINDOW_MINUTES: z.coerce.number().default(60),
+  // multi-wallet snipers funding a batch of brand-new burner wallets — or
+  // an exchange/bridge wallet fanning the same amount out to several
+  // wallets it controls).
   FANOUT_MIN_WALLETS: z.coerce.number().default(3),
-  FANOUT_MIN_VALUE_ETH: z.coerce.number().default(0.0005),
+  // 0 = no minimum: scan every native-value transfer, including small/odd
+  // amounts typical of cross-chain bridge deposits into Robinhood Chain.
+  FANOUT_MIN_VALUE_ETH: z.coerce.number().default(0),
+  // How far back a source's transfer history is even considered before
+  // being split into tight bursts (just an outer cap for the DB query).
+  FANOUT_LOOKBACK_HOURS: z.coerce.number().default(24),
+  // Members must be funded no more than this many minutes apart from the
+  // *next* member in the sequence (chained adjacency, not a fixed window
+  // from "now") to count as the same burst — keeps a real "spun up a
+  // batch of wallets in one sitting" cluster from merging with unrelated
+  // transfers hours apart.
+  FANOUT_MAX_GAP_MINUTES: z.coerce.number().default(10),
+  // How close two transfer amounts must be (as a % of the smaller one) to
+  // count as "the same amount" for the same-amount fan-out signal.
+  FANOUT_AMOUNT_TOLERANCE_PCT: z.coerce.number().default(10),
 
   DATABASE_URL: z.string().default("postgresql://postgres:postgres@localhost:5432/robinhood_tracker"),
   REDIS_URL: z.string().default("redis://localhost:6379"),

@@ -207,15 +207,39 @@ deploy separately.
 
 ## Wallet cluster (fan-out) detection — copy-trade signals
 
-Separate from the deployer risk-scoring above: this watches every native-ETH
-transfer on the chain (`src/chain/valueTransferWatcher.ts`) for the pattern
-of **one wallet funding a batch of brand-new burner wallets** (nonce 0, i.e.
-never sent a transaction before) — a common setup either for a dev prepping
-fake buyer wallets, or a multi-wallet sniper/trading group spinning up fresh
-wallets to buy a new listing. When a single funding source has funded
-`FANOUT_MIN_WALLETS` (default 3) or more fresh wallets within
-`FANOUT_WINDOW_MINUTES` (default 60), it's flagged as a **cluster** and shown
-in the dashboard's "Cụm ví nghi vấn" section and via a Telegram alert.
+Separate from the deployer risk-scoring above: this watches **every**
+native-value transfer on the chain (`src/chain/valueTransferWatcher.ts`) —
+no minimum amount by default, so cross-chain bridge deposits landing on
+Robinhood Chain (which can be small or odd amounts) aren't filtered out —
+and looks for a single funding source that just fanned money out to several
+other wallets in one tight burst. Two independent signals can trigger a
+cluster:
+
+- **`fresh`** — the classic pattern: the source funded `FANOUT_MIN_WALLETS`
+  (default 3) or more **brand-new burner wallets** (nonce 0, never sent a
+  transaction before) — a dev prepping fake buyer wallets, or a
+  multi-wallet sniper spinning up fresh wallets to buy a new listing.
+- **`amount`** — a newer signal for when funds go **directly from an
+  exchange/bridge wallet into wallets that already have history** (so they
+  aren't "fresh"): if that source sent `FANOUT_MIN_WALLETS`+ wallets a
+  near-identical amount (within `FANOUT_AMOUNT_TOLERANCE_PCT`) close
+  together in time, those are flagged as one cluster too — this is what
+  catches "one person's several source wallets all got topped up by the
+  exchange at the same time" even when none of them are brand new.
+
+A cluster that fires both signals at once is labeled `fresh+amount`. Either
+way it's flagged and shown in the dashboard's "Cụm ví nghi vấn" section
+(with a badge — 🆕 ví mới / 💰 cùng số tiền / 🆕💰 cả hai — so you can see at
+a glance why it was flagged) and via a Telegram alert. Non-fresh members are
+tagged "ví cũ" in the member list so you know that one was reused, not new.
+
+"Burst" means **members must be funded close to each other in time**, not
+just within some window measured from *now*: consecutive fundings from the
+same source can be at most `FANOUT_MAX_GAP_MINUTES` (default 10) apart — if
+a source funds wallet A, then wallet B two hours later, that's two separate
+bursts, not one cluster, even though both are within the outer
+`FANOUT_LOOKBACK_HOURS` lookback the query considers.
+
 Cluster cards stay expanded across the dashboard's 5s auto-refresh once
 opened. Forgot which cluster a wallet belonged to? Paste its address into
 the small lookup box above the cluster list — it finds and auto-opens the
@@ -238,10 +262,17 @@ Tuning (`.env`):
 - `FANOUT_MIN_WALLETS` — lower catches clusters faster but with more false
   positives (e.g. a legitimate faucet or exchange hot wallet funding many
   users also looks like a fan-out); higher requires more confirmation first.
-- `FANOUT_WINDOW_MINUTES` — how spread out the funding transactions can be
-  and still count as one operation.
-- `FANOUT_MIN_VALUE_ETH` — filters out dust transfers so tiny/irrelevant
-  transfers don't get evaluated.
+- `FANOUT_MIN_VALUE_ETH` — 0 (default) means no minimum at all. Only raise
+  this if dust transfers become real noise; leaving it at 0 is what lets
+  small/odd bridge-deposit amounts get caught.
+- `FANOUT_LOOKBACK_HOURS` — outer cap on how far back a source's history is
+  even pulled before burst-splitting; doesn't affect how tight a burst is.
+- `FANOUT_MAX_GAP_MINUTES` — the actual "how close together" knob. Lower it
+  if you only want very tight, obviously-automated bursts (e.g. a script
+  firing off wallets seconds apart); raise it if genuine operations in your
+  experience are spread a bit further apart than the default 10 minutes.
+- `FANOUT_AMOUNT_TOLERANCE_PCT` — how close two amounts must be (as a % of
+  the smaller one) to count as "the same amount" for the `amount` signal.
 
 Note: this is a heuristic, not proof of coordinated behavior — verify a
 flagged cluster's wallets yourself on the explorer before acting on it, and

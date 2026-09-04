@@ -14,15 +14,20 @@ export interface ValueTransferEvent {
 
 export type ValueTransferHandler = (event: ValueTransferEvent) => void | Promise<void>;
 
-const minValueWei = parseEther(env.FANOUT_MIN_VALUE_ETH.toString());
+// 0 (the default) means no minimum at all — every value transfer is
+// scanned, since bridge deposits from other chains into Robinhood Chain
+// can land as small/odd amounts that a fixed dust filter would silently
+// drop. Set FANOUT_MIN_VALUE_ETH > 0 only if real noise becomes a problem.
+const minValueWei = env.FANOUT_MIN_VALUE_ETH > 0 ? parseEther(env.FANOUT_MIN_VALUE_ETH.toString()) : 0n;
 
 /**
  * Watches every new block for plain native-ETH transfers (`to !== null`,
- * `value > 0`) worth at least FANOUT_MIN_VALUE_ETH — the raw signal for
- * detecting "1 wallet funds many brand-new wallets" fan-out patterns
- * (src/pipeline/handlers.ts's handleFundingTransfer does the fresh-wallet
- * check + cluster detection). Dust transfers below the threshold are
- * skipped here to avoid flooding the pipeline with noise.
+ * `value > 0`) — the raw signal for detecting "1 wallet funds many other
+ * wallets" fan-out patterns (src/pipeline/handlers.ts's
+ * handleFundingTransfer does the fresh-wallet check + cluster detection).
+ * This also picks up cross-chain bridge deposits landing on Robinhood
+ * Chain: those arrive as ordinary L2 transactions with a nonzero `value`,
+ * so no special-casing is needed beyond not filtering by amount.
  *
  * This runs its own `watchBlocks` subscription alongside
  * contractCreationWatcher's — a known small inefficiency (both re-fetch
@@ -34,7 +39,7 @@ export function watchValueTransfers(onTransfer: ValueTransferHandler) {
     includeTransactions: true,
     onBlock: (block) => {
       for (const tx of block.transactions) {
-        if (tx.to !== null && tx.value >= minValueWei) {
+        if (tx.to !== null && tx.value > 0n && tx.value >= minValueWei) {
           void onTransfer({
             from: tx.from,
             to: tx.to,

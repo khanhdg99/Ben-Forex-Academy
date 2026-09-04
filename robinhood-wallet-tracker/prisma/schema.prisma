@@ -128,16 +128,23 @@ model FundingTransfer {
   @@index([toAddress])
 }
 
-/// A funding source that has fanned out to >= FANOUT_MIN_WALLETS fresh
-/// wallets within FANOUT_WINDOW_MINUTES. Every wallet ever funded (fresh)
-/// by sourceAddress is treated as a cluster member for buyer-matching,
-/// not just the ones inside the window that first tripped the threshold.
+/// A funding source that has fanned out to >= FANOUT_MIN_WALLETS wallets
+/// within one tight burst (see FANOUT_MAX_GAP_MINUTES). Every wallet
+/// sourceAddress has ever funded is shown as a cluster member for
+/// buyer-matching, not just the ones in the burst that tripped the
+/// threshold.
 model FundingCluster {
   id              String    @id @default(cuid())
   sourceAddress   String    @unique
   firstDetectedAt DateTime  @default(now())
   lastUpdatedAt   DateTime  @updatedAt
   walletCount     Int
+  /// Why this source tripped detection: "fresh" (fanned out to brand-new
+  /// nonce-0 wallets), "amount" (fanned the same amount out to several
+  /// wallets close together in time, regardless of freshness — catches an
+  /// exchange/bridge wallet feeding several source wallets one person
+  /// controls), or "fresh+amount" (both signals fired).
+  matchType       String    @default("fresh")
   /// "This whole cluster needs watching" — separate from starring individual
   /// member wallets; starred clusters sort to the top of the cluster list.
   starred         Boolean   @default(false)

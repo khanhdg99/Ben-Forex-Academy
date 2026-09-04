@@ -145,7 +145,12 @@
   }
   .cluster-card .cc-head:hover { background: rgba(255,255,255,0.02); }
   .cc-badge { background: var(--accent); color: #0b0e17; font-weight: 750; font-size: 11.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  .cc-match { font-weight: 650; font-size: 10.5px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .cc-match-fresh { background: var(--green-dim); color: var(--green); }
+  .cc-match-amount { background: rgba(167,139,250,0.16); color: var(--accent-2); }
+  .cc-match-fresh-amount { background: var(--yellow-dim); color: var(--yellow); }
   .cc-meta { color: var(--muted-2); font-size: 11px; margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .cc-reused-tag { color: var(--accent-2); font-size: 10px; font-weight: 650; border: 1px solid rgba(167,139,250,0.4); border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
   .cc-members { border-top: 1px solid var(--border-soft); padding: 4px 8px; max-height: 260px; overflow-y: auto; }
   .cc-member-row {
     display: flex; align-items: center; gap: 9px; padding: 8px 8px; border-radius: 8px;
@@ -429,6 +434,16 @@ function checkbox(checked, addr) {
   return `<span class="checkbox ${checked ? "checked" : ""}" onclick="event.stopPropagation(); toggleChecked('${addr}', ${!checked})">${CHECK_ICON}</span>`;
 }
 const STAR_ICON = `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3 1.2-6.9-5-4.9 6.9-1z"/></svg>`;
+
+function matchTypeInfo(matchType) {
+  if (matchType === "amount") {
+    return { cls: "cc-match-amount", label: "💰 Cùng số tiền" };
+  }
+  if (matchType === "fresh+amount") {
+    return { cls: "cc-match-fresh-amount", label: "🆕💰 Ví mới + cùng tiền" };
+  }
+  return { cls: "cc-match-fresh", label: "🆕 Ví mới toanh" };
+}
 function starButton(starred, addr) {
   return `<button class="star-btn ${starred ? "starred" : ""}" title="Đánh dấu quan trọng" onclick="event.stopPropagation(); toggleStarred('${addr}', ${!starred})">${STAR_ICON}</button>`;
 }
@@ -546,6 +561,7 @@ async function populateClusterBody(source, bodyId) {
       <div class="cc-member-row ${m.checked ? "is-checked" : ""} ${m.starred ? "is-starred" : ""}">
         <span class="cell-actions">${checkbox(m.checked, m.address)}${starButton(m.starred, m.address)}</span>
         ${addrLink(m.address)}
+        ${m.wasFresh ? "" : '<span class="cc-reused-tag" title="Ví này đã có giao dịch từ trước, không phải ví mới toanh">ví cũ</span>'}
         <span style="margin-left:auto;color:var(--green);font-size:11px;font-weight:600">${formatUsd(m.valueUsd)}</span>
         <span style="color:var(--muted-2);font-size:11px;min-width:120px;text-align:right">${fmtTime(m.fundedAt)}</span>
       </div>
@@ -579,7 +595,7 @@ async function loadClusters() {
   document.getElementById("clusters-count").textContent = clusters.length;
   const grid = document.getElementById("clusters-grid");
 
-  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}:${c.starred}`).join("|");
+  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}:${c.starred}:${c.matchType}`).join("|");
   const structureChanged = signature !== lastClustersSignature || grid.children.length === 0;
 
   if (structureChanged) {
@@ -591,12 +607,14 @@ async function loadClusters() {
       grid.innerHTML = clusters.map((c) => {
         const bodyId = clusterBodyId(c.sourceAddress);
         const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
+        const match = matchTypeInfo(c.matchType);
         return `
           <div class="cluster-card ${c.starred ? "is-starred" : ""}" id="cluster-card-${c.sourceAddress.toLowerCase()}">
             <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
               <div>
                 ${addrLink(c.sourceAddress)}
                 <div class="cc-meta">
+                  <span class="cc-match ${match.cls}">${match.label}</span>
                   <span>Phát hiện ${fmtTime(c.firstDetectedAt)}</span>
                   <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
                 </div>

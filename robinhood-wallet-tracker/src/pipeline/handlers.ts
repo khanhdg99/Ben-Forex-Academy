@@ -20,7 +20,7 @@ import {
 } from "../alerts/telegram.js";
 import {
   recordFundingTransfer,
-  countRecentFreshFundedWallets,
+  detectFundingBurst,
   upsertFundingCluster,
   findClusterForWallet,
 } from "../db/fundingRepository.js";
@@ -232,11 +232,12 @@ export async function handleRug(data: RugJobData) {
 
 /**
  * Persists a native-ETH transfer and checks whether the sender has now
- * fanned out to enough fresh (never-sent-a-tx) wallets within the fan-out
- * window to count as a "wallet cluster" — the pattern of a single funder
- * spinning up a batch of brand-new burner wallets, which is the signal
- * this feature exists to catch (whether it's a dev prepping sybil buyers,
- * or a multi-wallet sniper worth copy-trading via their sub-wallets).
+ * fanned out to enough wallets within a tight time burst to count as a
+ * "wallet cluster" — either a single funder spinning up a batch of
+ * brand-new burner wallets (a dev prepping sybil buyers, or a multi-wallet
+ * sniper worth copy-trading via their sub-wallets), or an exchange/bridge
+ * wallet fanning the same amount out to several wallets one person
+ * controls (which may not be brand-new themselves).
  */
 export async function handleFundingTransfer(data: FundingTransferJobData) {
   const from = data.from as Address;
@@ -253,18 +254,21 @@ export async function handleFundingTransfer(data: FundingTransferJobData) {
     toWasFreshWallet: fresh,
   });
 
-  if (!fresh) return;
+  if (fresh) {
+    // So this sub-wallet shows up as a checkable entity on the dashboard
+    // even before its funder crosses the cluster threshold.
+    await upsertWallet(to);
+  }
 
-  // So this sub-wallet shows up as a checkable entity on the dashboard even
-  // before its funder crosses the cluster threshold.
-  await upsertWallet(to);
+  const burst = await detectFundingBurst(from);
+  if (!burst) return;
 
-  const members = await countRecentFreshFundedWallets(from);
-  if (members.length < env.FANOUT_MIN_WALLETS) return;
-
-  const { grew } = await upsertFundingCluster(from, members.length);
+  const { grew } = await upsertFundingCluster(from, burst.members.length, burst.matchType);
   if (!grew) return;
 
-  logger.info({ source: from, memberCount: members.length }, "funding fan-out cluster detected");
-  await sendClusterAlert(from, members);
+  logger.info(
+    { source: from, memberCount: burst.members.length, matchType: burst.matchType },
+    "funding fan-out cluster detected",
+  );
+  await sendClusterAlert(from, burst.members, burst.matchType);
 }
