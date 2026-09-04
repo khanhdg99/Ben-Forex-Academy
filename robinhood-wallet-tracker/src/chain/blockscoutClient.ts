@@ -28,21 +28,66 @@ interface BlockscoutTxListResponse {
   next_page_params: Record<string, unknown> | null;
 }
 
-async function blockscoutGet<T>(path: string): Promise<T | null> {
-  const url = `${env.BLOCKSCOUT_API_BASE}${path}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
+// A bare Node fetch() with no User-Agent gets 403'd by Blockscout's
+// Cloudflare/WAF bot protection on some deployments — the exact same URL
+// works fine when opened in an actual browser, which sends headers like
+// these automatically. Confirmed against a real failure: the same address
+// returned 403 from this client on both the v2 and classic endpoints while
+// loading fine in-browser.
+const BROWSER_LIKE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+};
+
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 700;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fetches `url` with browser-like headers, retrying a couple times on
+ * 403/429 (blocked or rate-limited — worth one retry since it can be
+ * transient) with a short increasing delay. Returns null (never throws) on
+ * final failure so callers can treat "no data" and "API problem" the same
+ * way — this endpoint is a best-effort enrichment, not load-bearing.
+ */
+async function fetchBlockscout(url: string): Promise<Response | null> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, { headers: BROWSER_LIKE_HEADERS });
+      if (res.ok) return res;
+      if ((res.status === 403 || res.status === 429) && attempt < MAX_RETRIES) {
+        logger.warn(
+          { url, status: res.status, attempt: attempt + 1 },
+          "blockscout request blocked/rate-limited, retrying",
+        );
+        await sleep(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
       logger.warn({ url, status: res.status }, "blockscout API request failed");
       return null;
+    } catch (err) {
+      if (attempt < MAX_RETRIES) {
+        await sleep(RETRY_DELAY_MS * (attempt + 1));
+        continue;
+      }
+      logger.warn({ err, url }, "blockscout API request errored");
+      return null;
     }
-    const body = (await res.json()) as T;
-    logger.debug({ url, preview: JSON.stringify(body).slice(0, 300) }, "blockscout API response");
-    return body;
-  } catch (err) {
-    logger.warn({ err, url }, "blockscout API request errored");
-    return null;
   }
+  return null;
+}
+
+async function blockscoutGet<T>(path: string): Promise<T | null> {
+  const url = `${env.BLOCKSCOUT_API_BASE}${path}`;
+  const res = await fetchBlockscout(url);
+  if (!res) return null;
+  const body = (await res.json()) as T;
+  logger.debug({ url, preview: JSON.stringify(body).slice(0, 300) }, "blockscout API response");
+  return body;
 }
 
 /**
@@ -58,19 +103,11 @@ function blockscoutClassicApiBase(): string {
 
 async function blockscoutClassicGet<T>(params: Record<string, string>): Promise<T | null> {
   const url = `${blockscoutClassicApiBase()}?${new URLSearchParams(params).toString()}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      logger.warn({ url, status: res.status }, "blockscout classic API request failed");
-      return null;
-    }
-    const body = (await res.json()) as T;
-    logger.debug({ url, preview: JSON.stringify(body).slice(0, 300) }, "blockscout classic API response");
-    return body;
-  } catch (err) {
-    logger.warn({ err, url }, "blockscout classic API request errored");
-    return null;
-  }
+  const res = await fetchBlockscout(url);
+  if (!res) return null;
+  const body = (await res.json()) as T;
+  logger.debug({ url, preview: JSON.stringify(body).slice(0, 300) }, "blockscout classic API response");
+  return body;
 }
 
 /**

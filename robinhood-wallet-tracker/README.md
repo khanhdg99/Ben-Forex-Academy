@@ -381,7 +381,16 @@ sequencer is first-come-first-served, so the only latency lever here is
 - **Funding-source / serial-deployer backfill is best-effort**: it calls the
   Blockscout REST API (`src/chain/blockscoutClient.ts`), which may need
   adjusting if the instance's exact response shape differs from what's
-  coded here (couldn't confirm firsthand — see the facts doc).
+  coded here (couldn't confirm firsthand — see the facts doc). Confirmed
+  from a real run's terminal log that a bare `fetch()` with no headers gets
+  **403'd by Blockscout's Cloudflare/WAF bot protection** even though the
+  exact same address loads fine in a browser — fixed by sending
+  browser-like `User-Agent`/`Accept` headers plus a couple of retries with
+  backoff on 403/429 (verified against a local mock server: headers are
+  sent on every attempt and a request that fails twice then succeeds is
+  correctly picked up on the 3rd try). If 403s still show up in the log
+  after this, Blockscout's bot protection has likely gotten stricter and
+  the headers may need updating to match a current real browser's.
 - **No wallet clustering yet** — the brief's step 6 (clustering deployers by
   shared funding source into ownership groups, beyond simple "this address
   funded N tracked wallets" reuse counting) isn't implemented. The
