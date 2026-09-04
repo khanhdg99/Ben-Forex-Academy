@@ -93,6 +93,18 @@
     padding: 6px 12px; border-radius: 999px; transition: .15s;
   }
   nav.subnav a:hover { color: var(--text); background: var(--panel-2); }
+  nav.subnav a.subnav-muted { color: var(--muted-2); font-size: 11.5px; margin-left: auto; opacity: .7; }
+  nav.subnav a.subnav-muted:hover { opacity: 1; }
+
+  .trash-details { margin-bottom: 40px; scroll-margin-top: 90px; opacity: .75; transition: opacity .15s; }
+  .trash-details:hover, .trash-details[open] { opacity: 1; }
+  .trash-details summary { cursor: pointer; list-style: none; }
+  .trash-details summary::-webkit-details-marker { display: none; }
+  .trash-details summary::before {
+    content: "▸"; display: inline-block; width: 14px; color: var(--muted-2);
+    transition: transform .15s; margin-right: 2px;
+  }
+  .trash-details[open] summary::before { transform: rotate(90deg); }
 
   main { max-width: 1240px; margin: 0 auto; padding: 28px; }
 
@@ -283,10 +295,10 @@
     <nav class="subnav">
       <a href="#investigate">Kiểm tra token</a>
       <a href="#starred">⭐ Ví quan trọng</a>
-      <a href="#trash">🗑 Đã xoá</a>
       <a href="#clusters">Cụm ví</a>
       <a href="#watchlist">Watchlist</a>
       <a href="#deployments">Deployments</a>
+      <a href="#trash" class="subnav-muted">🗑 Đã xoá</a>
     </nav>
   </header>
 
@@ -333,25 +345,6 @@
       <div class="table-wrap">
         <table id="starred-table">
           <thead><tr><th style="width:36px"></th><th>Wallet</th><th>Score</th><th>Đã check?</th><th>Đánh dấu lúc</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section id="trash">
-      <div class="section-head">
-        <div class="section-title">
-          <div class="icon-wrap trash-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div>
-          <div>
-            <h2>🗑 Đã xoá</h2>
-            <div class="desc">Ví/cụm ví bạn đã tick — tự động xoá vĩnh viễn khỏi database sau 3 ngày nếu không bỏ tick</div>
-          </div>
-        </div>
-        <span class="count-pill" id="trash-count">0</span>
-      </div>
-      <div class="table-wrap">
-        <table id="trash-table">
-          <thead><tr><th>Wallet</th><th>Loại</th><th>Đã tick lúc</th><th>Còn lại</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -418,6 +411,25 @@
         </table>
       </div>
     </section>
+
+    <details id="trash-details" class="trash-details">
+      <summary class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap trash-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div>
+          <div>
+            <h2>🗑 Đã xoá</h2>
+            <div class="desc">Ví/cụm ví bạn đã tick — tự động xoá vĩnh viễn khỏi database sau 3 ngày nếu không bỏ tick</div>
+          </div>
+        </div>
+        <span class="count-pill" id="trash-count">0</span>
+      </summary>
+      <div class="table-wrap" style="margin-top:14px">
+        <table id="trash-table">
+          <thead><tr><th>Wallet</th><th>Loại</th><th>Đã tick lúc</th><th>Còn lại</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </details>
   </main>
 
   <footer>Tự động làm mới mỗi 5 giây · Ngưỡng cảnh báo hiện tại: <code class="inline" id="threshold">–</code></footer>
@@ -948,6 +960,18 @@ async function refresh() {
     console.error(err);
   }
 }
+
+// The Trash section is collapsed by default (tucked out of the way) — but
+// clicking its nav link should actually open it, not just scroll to a
+// closed box.
+function openTrashIfLinked() {
+  if (location.hash === "#trash") {
+    const details = document.getElementById("trash-details");
+    if (details) details.open = true;
+  }
+}
+window.addEventListener("hashchange", openTrashIfLinked);
+openTrashIfLinked();
 
 refresh();
 setInterval(refresh, 5000);
