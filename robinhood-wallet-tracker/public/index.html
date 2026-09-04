@@ -295,8 +295,8 @@
         <table>
           <thead>
             <tr>
-              <th style="width:36px"></th><th>Ví mua</th><th>Độ tin cậy</th><th>Ví mới?</th><th>Chỉ mua token này?</th>
-              <th>Nhóm cùng số lượng</th><th>Phút sau pool</th><th>Số lượng mua</th>
+              <th style="width:36px"></th><th>Ví mua</th><th>Độ tin cậy</th><th>Nguồn vốn</th>
+              <th>Ghi chú</th><th>Phút sau pool</th><th>Số lượng mua</th>
             </tr>
           </thead>
           <tbody id="investigate-tbody"></tbody>
@@ -669,8 +669,20 @@ async function runInvestigation() {
     }
 
     const devCount = result.buyers.filter((b) => b.likelyDevWallet).length;
+    const fundingGroups = new Map();
+    for (const b of result.buyers) {
+      if (!b.fundingSource) continue;
+      const list = fundingGroups.get(b.fundingSource) || [];
+      list.push(b.address);
+      fundingGroups.set(b.fundingSource, list);
+    }
+    const sharedGroups = [...fundingGroups.entries()].filter(([, addrs]) => addrs.length >= 2);
+    const sharedHtml = sharedGroups.length > 0
+      ? `<br/>🔗 Phát hiện ${sharedGroups.length} nhóm ví mua chung nguồn vốn: ` +
+        sharedGroups.map(([source, addrs]) => `${addrLink(source)} → ${addrs.length} ví`).join(", ")
+      : "";
     meta.innerHTML = `Pool: ${addrLink(result.poolAddress)} (${result.poolSource === "tracked" ? "bot đã theo dõi" : "suy luận từ lịch sử transfer"})
-      · Đã phân tích ${result.buyersAnalyzed} ví mua sớm nhất · <span class="dev-flag">${devCount} ví nghi là dev</span>`;
+      · Đã phân tích ${result.buyersAnalyzed} ví mua sớm nhất · <span class="dev-flag">${devCount} ví nghi là dev</span>${sharedHtml}`;
 
     if (result.buyers.length === 0) {
       resultsWrap.style.display = "none";
@@ -682,9 +694,10 @@ async function runInvestigation() {
         <td><button class="star-btn" title="Đánh dấu quan trọng" onclick="toggleStarredInline(this, '${b.address}')">${STAR_ICON}</button></td>
         <td>${addrLink(b.address)} ${b.likelyDevWallet ? '<span class="dev-flag">🚩 DEV</span>' : ""}</td>
         <td>${scoreRing(b.confidence)}</td>
-        <td>${badge(b.isFreshWallet ? "Mới" : "Cũ", b.isFreshWallet)}</td>
-        <td>${b.onlyBoughtThisToken === null ? "?" : badge(b.onlyBoughtThisToken ? "Chỉ token này" : "Có token khác", b.onlyBoughtThisToken)}</td>
-        <td>${b.sameAmountGroupSize >= 2 ? badge(`${b.sameAmountGroupSize} ví cùng SL`, true) : "–"}</td>
+        <td>${b.fundingSource
+          ? addrLink(b.fundingSource) + (b.sharedFundingGroupSize >= 2 ? ` ${badge(`chung ${b.sharedFundingGroupSize} ví`, true)}` : "")
+          : "?"}</td>
+        <td style="max-width:260px;font-size:11.5px;color:var(--muted)">${b.notes.join("; ") || "–"}</td>
         <td>${b.minutesAfterPoolCreation !== null ? b.minutesAfterPoolCreation.toFixed(1) : "?"}</td>
         <td>${formatAmount(b.amountBought, result.decimals)} ${result.symbol || ""}</td>
       </tr>

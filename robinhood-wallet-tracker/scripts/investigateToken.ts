@@ -28,11 +28,25 @@ async function main() {
 
   for (const b of result.buyers) {
     const flag = b.likelyDevWallet ? "🚩 NGHI LÀ VÍ DEV" : "  ";
-    console.log(
-      `${flag} ${b.address}  conf=${b.confidence}  fresh=${b.isFreshWallet}  ` +
-        `onlyThisToken=${b.onlyBoughtThisToken}  sameAmountGroup=${b.sameAmountGroupSize}  ` +
-        `minAfterPool=${b.minutesAfterPoolCreation?.toFixed(1) ?? "?"}  amount=${b.amountBought}`,
-    );
+    console.log(`${flag} ${b.address}  conf=${b.confidence}  amount=${b.amountBought}`);
+    console.log(`     nguồn vốn: ${b.fundingSource ?? "không rõ"}${b.sharedFundingGroupSize >= 2 ? ` (CHUNG với ${b.sharedFundingGroupSize - 1} ví khác!)` : ""}`);
+    for (const note of b.notes) console.log(`     - ${note}`);
+    console.log("");
+  }
+
+  const fundingGroups = new Map<string, string[]>();
+  for (const b of result.buyers) {
+    if (!b.fundingSource) continue;
+    const list = fundingGroups.get(b.fundingSource) ?? [];
+    list.push(b.address);
+    fundingGroups.set(b.fundingSource, list);
+  }
+  const sharedGroups = [...fundingGroups.entries()].filter(([, addrs]) => addrs.length >= 2);
+  if (sharedGroups.length > 0) {
+    console.log("=== Các nhóm ví cùng chung 1 nguồn vốn ===");
+    for (const [source, addrs] of sharedGroups) {
+      console.log(`Nguồn: ${source} -> cấp vốn cho ${addrs.length} ví mua: ${addrs.join(", ")}`);
+    }
   }
 
   process.exit(0);
