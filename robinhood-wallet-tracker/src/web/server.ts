@@ -77,13 +77,23 @@ export function startWebServer() {
   });
 
   app.get("/api/clusters", async (_req, res) => {
-    const clusters = await listClusters();
-    res.json(toJson(clusters));
+    try {
+      const clusters = await listClusters();
+      res.json(toJson(clusters));
+    } catch (err) {
+      logger.error({ err }, "failed to list clusters");
+      res.status(500).json({ error: "failed to list clusters" });
+    }
   });
 
   app.get("/api/clusters/:source/members", async (req, res) => {
-    const members = await listClusterMembers(req.params.source);
-    res.json(toJson(members));
+    try {
+      const members = await listClusterMembers(req.params.source);
+      res.json(toJson(members));
+    } catch (err) {
+      logger.error({ err, source: req.params.source }, "failed to list cluster members");
+      res.status(500).json({ error: "failed to list cluster members" });
+    }
   });
 
   app.get("/api/wallets/:address/cluster", async (req, res) => {
@@ -141,6 +151,20 @@ export function startWebServer() {
       return;
     }
     res.json(toJson(wallet));
+  });
+
+  // Catch-all safety net: Express 5 auto-forwards a rejected async handler
+  // here even without an explicit try/catch in the route, but without this
+  // it falls through to Express's default (unlogged, HTML) error page —
+  // this makes sure every API failure is visible in the server log and
+  // returns clean JSON instead.
+  app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    logger.error({ err, path: req.path }, "unhandled API error");
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+    res.status(500).json({ error: "internal error" });
   });
 
   const server = app.listen(env.WEB_PORT, () => {

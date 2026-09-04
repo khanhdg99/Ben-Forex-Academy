@@ -90,7 +90,15 @@ export async function listClusterMembers(sourceAddress: string) {
   });
   const walletByAddress = new Map(wallets.map((w) => [w.address, w]));
 
-  const ethUsdPrice = await getEthUsdPrice();
+  // Belt-and-suspenders: getEthUsdPrice() already guards its own network
+  // call, but a price problem must never be able to break the member list
+  // itself, so it's guarded again here.
+  let ethUsdPrice: number | null = null;
+  try {
+    ethUsdPrice = await getEthUsdPrice();
+  } catch {
+    ethUsdPrice = null;
+  }
 
   return rows.map((r) => ({
     address: r.toAddress,
