@@ -310,39 +310,42 @@ regardless of how the wallet was found (rugs, honeypots, and wallets that
 buy early but still lose money are all common on this chain — see
 `docs/ROBINHOOD_CHAIN_FACTS.md`).
 
-## Token investigator — find likely dev-controlled buyer wallets
+## Token investigator — find the dev wallet behind a fake-buyer batch
 
 Paste any token address into the "Kiểm tra token" panel at the top of the
 dashboard (or run `npm run investigate -- 0xTokenAddress` from the
-terminal) and the bot analyzes its early buyers — including tokens it
-never tracked itself (deployed before the bot was running), by inferring
-the pool address from the token's own transfer history when needed.
+terminal) and the bot scans its first 100 buyers (earliest first) —
+including tokens it never tracked itself (deployed before the bot was
+running), by inferring the pool address from the token's own transfer
+history when needed.
 
-For each buyer wallet, it checks two signals:
+It's a hard filter, not a fuzzy score: a buyer is only listed if it's
+**both**:
 
-1. **Core signal — exclusivity**: has this wallet ever received any ERC-20
-   token other than this one? A wallet whose entire inbound-token history
-   is just this single token is very likely a throwaway created to buy
-   exactly one launch — a real trader's wallet has bought other things
-   before. This alone is enough to flag a wallet.
-2. **Bonus signals** (raise confidence further, not required): the wallet
-   is brand-new (nonce 0), it bought within the first 10 minutes of the
-   pool, and/or multiple other analyzed wallets bought the *exact same*
-   token amount — a classic sign of a scripted batch of buys from one
-   operator rather than independent organic buyers.
+1. A brand-new wallet — nonce 0, never sent a transaction before.
+2. Has never bought/received any ERC-20 token other than this one, ever —
+   a real trader's wallet has other tokens in its history; a throwaway
+   wallet spun up to fake-buy one launch usually doesn't.
 
-Each buyer gets a 0-100 confidence score (`src/investigation/tokenInvestigator.ts`);
-`>= 50` (which "exclusivity" alone already reaches) is flagged 🚩 as a
-likely dev wallet. Analysis is capped at the first 30 distinct buyers and
-does one Blockscout lookup per wallet, so it can take a few seconds to tens
-of seconds depending on how many buyers there were.
+Among just that qualifying list, it looks at who funded each one (the same
+funding-source lookup used for deployer scoring) and, if **2 or more** of
+them were funded by the *same* wallet, surfaces that wallet as the
+**suspected dev wallet** in a callout above the results table — the one
+worth adding to follow/watchlist via its ⭐ button. Each qualifying row
+also shows its own funding source and flags when multiple qualifying
+buyers bought the exact same token amount (a scripted-batch signal). A
+"Xoá kết quả" button clears the table — nothing from this tool is ever
+written to the database, it's pure on-chain analysis shown on demand.
 
-Verified end-to-end in this repo's sandbox with a mocked API response
-(screenshot in the PR/session) — the actual Blockscout token-transfer
-lookups (`src/chain/blockscoutClient.ts`'s `getTokenTransfers` /
-`hasOnlyEverReceivedToken`) couldn't be exercised against live data there
-(egress blocked); run it once against a real token to confirm the response
-shape still matches, per the usual Blockscout-API caveat in that file.
+Analysis does up to 3 Blockscout lookups per scanned buyer
+(`src/investigation/tokenInvestigator.ts`), so it can take a few seconds to
+tens of seconds depending on how many buyers there were. The core
+qualifying-filter and shared-funding-source logic is covered by an isolated
+unit test in this repo's sandbox (mocked buyer data, since the actual
+Blockscout token-transfer lookups can't be exercised against live data
+there — egress blocked); run it once against a real token to confirm the
+response shape still matches, per the usual Blockscout-API caveat in that
+file.
 
 ## Scoring model
 

@@ -261,7 +261,17 @@
   }
   .investigate-form button:hover { filter: brightness(1.08); }
   .investigate-form button:disabled { opacity: 0.5; cursor: default; }
+  .investigate-form button.btn-ghost {
+    background: var(--panel-3); color: var(--muted); border: 1px solid var(--border); font-weight: 600;
+  }
+  .investigate-form button.btn-ghost:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); filter: none; }
   .investigate-meta { color: var(--muted-2); font-size: 11.5px; margin-top: 10px; }
+  .dev-wallet-callout {
+    margin-top: 14px; padding: 13px 16px; border-radius: 10px;
+    background: var(--red-dim); border: 1px solid rgba(240,89,106,0.35);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px;
+  }
+  .dev-wallet-callout .label { color: var(--red); font-weight: 750; white-space: nowrap; }
   .dev-flag { color: var(--red); font-weight: 700; font-size: 11px; }
   tr.dev-row { background: rgba(240,89,106,0.05); }
   tr.dev-row:hover { background: rgba(240,89,106,0.09) !important; }
@@ -308,20 +318,22 @@
         <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
         <div>
           <h2>Kiểm tra token — tìm ví dev đang tự mua</h2>
-          <div class="desc">Dán địa chỉ token bất kỳ (kể cả token bot chưa từng thấy) để phân tích ví mua sớm</div>
+          <div class="desc">Dán địa chỉ token bất kỳ — liệt kê các ví mới toanh chỉ mua riêng token này (quét tối đa 100 ví mua đầu tiên) và ví nguồn chung cấp vốn cho chúng</div>
         </div>
       </div>
       <div class="investigate-form">
         <input id="investigate-input" type="text" placeholder="0x... địa chỉ token cần kiểm tra" />
         <button id="investigate-btn" onclick="runInvestigation()">Phân tích</button>
+        <button id="investigate-clear-btn" class="btn-ghost" onclick="clearInvestigation()">Xoá kết quả</button>
       </div>
       <div class="investigate-meta" id="investigate-meta"></div>
+      <div id="investigate-devwallet" class="dev-wallet-callout" style="display:none"></div>
       <div class="table-wrap" id="investigate-results" style="display:none;margin-top:14px">
         <table>
           <thead>
             <tr>
-              <th style="width:36px"></th><th>Ví mua</th><th>Độ tin cậy</th><th>Nguồn vốn</th>
-              <th>Ghi chú</th><th>Phút sau pool</th><th>Số lượng mua</th>
+              <th style="width:36px"></th><th>Ví mua</th><th>Nguồn vốn</th>
+              <th>Phút sau pool</th><th>Số lượng mua</th>
             </tr>
           </thead>
           <tbody id="investigate-tbody"></tbody>
@@ -836,10 +848,19 @@ function formatAmount(raw, decimals) {
   }
 }
 
+function clearInvestigation() {
+  document.getElementById("investigate-input").value = "";
+  document.getElementById("investigate-meta").textContent = "";
+  document.getElementById("investigate-devwallet").style.display = "none";
+  document.getElementById("investigate-results").style.display = "none";
+  document.getElementById("investigate-tbody").innerHTML = "";
+}
+
 async function runInvestigation() {
   const input = document.getElementById("investigate-input");
   const btn = document.getElementById("investigate-btn");
   const meta = document.getElementById("investigate-meta");
+  const devWalletBox = document.getElementById("investigate-devwallet");
   const resultsWrap = document.getElementById("investigate-results");
   const tbody = document.getElementById("investigate-tbody");
   const tokenAddress = input.value.trim();
@@ -852,6 +873,7 @@ async function runInvestigation() {
   btn.disabled = true;
   btn.textContent = "Đang phân tích...";
   meta.textContent = "Đang tra cứu on-chain (có thể mất vài giây tới vài chục giây)...";
+  devWalletBox.style.display = "none";
   resultsWrap.style.display = "none";
 
   try {
@@ -866,38 +888,34 @@ async function runInvestigation() {
       return;
     }
 
-    const devCount = result.buyers.filter((b) => b.likelyDevWallet).length;
-    const fundingGroups = new Map();
-    for (const b of result.buyers) {
-      if (!b.fundingSource) continue;
-      const list = fundingGroups.get(b.fundingSource) || [];
-      list.push(b.address);
-      fundingGroups.set(b.fundingSource, list);
-    }
-    const sharedGroups = [...fundingGroups.entries()].filter(([, addrs]) => addrs.length >= 2);
-    const sharedHtml = sharedGroups.length > 0
-      ? `<br/>🔗 Phát hiện ${sharedGroups.length} nhóm ví mua chung nguồn vốn: ` +
-        sharedGroups.map(([source, addrs]) => `${addrLink(source)} → ${addrs.length} ví`).join(", ")
-      : "";
     meta.innerHTML = `Pool: ${addrLink(result.poolAddress)} (${result.poolSource === "tracked" ? "bot đã theo dõi" : "suy luận từ lịch sử transfer"})
-      · Đã phân tích ${result.buyersAnalyzed} ví mua sớm nhất · <span class="dev-flag">${devCount} ví nghi là dev</span>${sharedHtml}`;
+      · Đã quét ${result.buyersAnalyzed} ví mua sớm nhất
+      · <span class="dev-flag">${result.qualifyingBuyers.length} ví thoả điều kiện (mới + chỉ mua riêng token này)</span>`;
 
-    if (result.buyers.length === 0) {
+    if (result.suspectedDevWallet) {
+      devWalletBox.innerHTML = `
+        <span class="label">🚩 Nghi là ví dev (ví nguồn chung):</span>
+        ${addrLink(result.suspectedDevWallet)}
+        <span>cấp vốn cho ${result.suspectedDevWalletMemberCount}/${result.qualifyingBuyers.length} ví ở dưới</span>
+        <button class="star-btn" title="Cho vào ví quan trọng để follow" onclick="toggleStarredInline(this, '${result.suspectedDevWallet}')">${STAR_ICON}</button>
+      `;
+      devWalletBox.style.display = "flex";
+    } else {
+      devWalletBox.style.display = "none";
+    }
+
+    if (result.qualifyingBuyers.length === 0) {
       resultsWrap.style.display = "none";
       return;
     }
 
-    tbody.innerHTML = result.buyers.map((b) => `
-      <tr class="${b.likelyDevWallet ? "dev-row" : ""}">
+    tbody.innerHTML = result.qualifyingBuyers.map((b) => `
+      <tr>
         <td><button class="star-btn" title="Đánh dấu quan trọng" onclick="toggleStarredInline(this, '${b.address}')">${STAR_ICON}</button></td>
-        <td>${addrLink(b.address)} ${b.likelyDevWallet ? '<span class="dev-flag">🚩 DEV</span>' : ""}</td>
-        <td>${scoreRing(b.confidence)}</td>
-        <td>${b.fundingSource
-          ? addrLink(b.fundingSource) + (b.sharedFundingGroupSize >= 2 ? ` ${badge(`chung ${b.sharedFundingGroupSize} ví`, true)}` : "")
-          : "?"}</td>
-        <td style="max-width:260px;font-size:11.5px;color:var(--muted)">${b.notes.join("; ") || "–"}</td>
+        <td>${addrLink(b.address)}</td>
+        <td>${b.fundingSource ? addrLink(b.fundingSource) : "?"}</td>
         <td>${b.minutesAfterPoolCreation !== null ? b.minutesAfterPoolCreation.toFixed(1) : "?"}</td>
-        <td>${formatAmount(b.amountBought, result.decimals)} ${result.symbol || ""}</td>
+        <td>${formatAmount(b.amountBought, result.decimals)} ${result.symbol || ""}${b.sameAmountGroupSize >= 2 ? ` ${badge(`cùng ${b.sameAmountGroupSize} ví`, true)}` : ""}</td>
       </tr>
     `).join("");
     resultsWrap.style.display = "block";
