@@ -26,6 +26,23 @@ export async function setWalletChecked(address: Address, checked: boolean) {
   });
 }
 
+/** Flips a wallet's "important, keep watching" flag — independent of `checked`. */
+export async function setWalletStarred(address: Address, starred: boolean) {
+  return prisma.wallet.upsert({
+    where: { address: address.toLowerCase() },
+    create: { address: address.toLowerCase(), starred, starredAt: starred ? new Date() : null },
+    update: { starred, starredAt: starred ? new Date() : null },
+  });
+}
+
+/** All wallets currently starred, newest-starred first. */
+export async function listStarredWallets() {
+  return prisma.wallet.findMany({
+    where: { starred: true },
+    orderBy: { starredAt: "desc" },
+  });
+}
+
 export async function recordTokenDeployment(params: {
   tokenAddress: Address;
   deployerAddress: Address;

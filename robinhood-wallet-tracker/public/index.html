@@ -193,6 +193,21 @@
   .checkbox svg { width: 10px; height: 10px; opacity: 0; }
   .checkbox.checked svg { opacity: 1; }
 
+  .star-btn {
+    background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+    color: var(--muted-2); transition: .1s;
+  }
+  .star-btn:hover { color: var(--yellow); transform: scale(1.1); }
+  .star-btn svg { width: 16px; height: 16px; }
+  .star-btn.starred { color: var(--yellow); }
+  .star-btn.starred svg { fill: var(--yellow); }
+  .cell-actions { display: flex; align-items: center; gap: 7px; }
+
+  tr.is-starred { background: rgba(224,185,79,0.05); }
+  tr.is-starred:hover { background: rgba(224,185,79,0.09) !important; }
+  .cc-member-row.is-starred { background: rgba(224,185,79,0.07); }
+
   button.rm {
     background: transparent; border: 1px solid var(--border); color: var(--muted);
     border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 11.5px; font-weight: 550; transition: .1s;
@@ -255,6 +270,7 @@
     </div>
     <nav class="subnav">
       <a href="#investigate">Kiểm tra token</a>
+      <a href="#starred">⭐ Ví quan trọng</a>
       <a href="#clusters">Cụm ví</a>
       <a href="#watchlist">Watchlist</a>
       <a href="#deployments">Deployments</a>
@@ -279,7 +295,7 @@
         <table>
           <thead>
             <tr>
-              <th>Ví mua</th><th>Độ tin cậy</th><th>Ví mới?</th><th>Chỉ mua token này?</th>
+              <th style="width:36px"></th><th>Ví mua</th><th>Độ tin cậy</th><th>Ví mới?</th><th>Chỉ mua token này?</th>
               <th>Nhóm cùng số lượng</th><th>Phút sau pool</th><th>Số lượng mua</th>
             </tr>
           </thead>
@@ -289,6 +305,25 @@
     </section>
 
     <div class="stats" id="stats"></div>
+
+    <section id="starred">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3 1.2-6.9-5-4.9 6.9-1z"/></svg></div>
+          <div>
+            <h2>⭐ Ví quan trọng</h2>
+            <div class="desc">Ví bạn tự đánh dấu cần để ý — gom từ mọi nơi trong hệ thống</div>
+          </div>
+        </div>
+        <span class="count-pill" id="starred-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table id="starred-table">
+          <thead><tr><th style="width:36px"></th><th>Wallet</th><th>Score</th><th>Đã check?</th><th>Đánh dấu lúc</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
 
     <section id="clusters">
       <div class="section-head">
@@ -383,6 +418,31 @@ function badge(label, on, isRug) {
 function checkbox(checked, addr) {
   return `<span class="checkbox ${checked ? "checked" : ""}" onclick="event.stopPropagation(); toggleChecked('${addr}', ${!checked})">${CHECK_ICON}</span>`;
 }
+const STAR_ICON = `<svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" fill="none"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3 1.2-6.9-5-4.9 6.9-1z"/></svg>`;
+function starButton(starred, addr) {
+  return `<button class="star-btn ${starred ? "starred" : ""}" title="Đánh dấu quan trọng" onclick="event.stopPropagation(); toggleStarred('${addr}', ${!starred})">${STAR_ICON}</button>`;
+}
+async function toggleStarred(address, starred) {
+  await fetchJson(`/api/wallets/${address}/starred`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ starred }),
+  });
+  refresh();
+}
+
+/** Like toggleStarred, but updates the clicked button in place instead of
+ * triggering a full refresh — used on the investigate-results table, which
+ * isn't backed by a re-fetchable list. */
+async function toggleStarredInline(btn, address) {
+  const nowStarred = !btn.classList.contains("starred");
+  await fetchJson(`/api/wallets/${address}/starred`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ starred: nowStarred }),
+  });
+  btn.classList.toggle("starred", nowStarred);
+}
 
 async function fetchJson(url, opts) {
   const res = await fetch(url, opts);
@@ -416,8 +476,29 @@ async function loadStats() {
       <div><div class="label">Cảnh báo (24h)</div><div class="value">${s.alertableToday}</div></div></div>
     <div class="stat">${statIcon("rgba(167,139,250,0.14)","#a78bfa","<circle cx=\'6\' cy=\'6\' r=\'2\'/><circle cx=\'18\' cy=\'6\' r=\'2\'/><circle cx=\'12\' cy=\'18\' r=\'2\'/><path d=\'M7.7 7.3L11 16M16.3 7.3L13 16\'/>")}
       <div><div class="label">Cụm ví fan-out</div><div class="value">${s.totalClusters}</div></div></div>
+    <div class="stat">${statIcon("rgba(224,185,79,0.14)","#e0b94f","<path d=\'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.9-6.2-3.3-6.2 3.3 1.2-6.9-5-4.9 6.9-1z\'/>")}
+      <div><div class="label">Ví quan trọng</div><div class="value">${s.totalStarred}</div></div></div>
   `;
   document.getElementById("threshold").textContent = s.threshold;
+}
+
+async function loadStarred() {
+  const wallets = await fetchJson("/api/starred");
+  document.getElementById("starred-count").textContent = wallets.length;
+  const tbody = document.querySelector("#starred-table tbody");
+  if (wallets.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Chưa đánh dấu ví nào — bấm ⭐ cạnh 1 ví bất kỳ để thêm vào đây</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = wallets.map((w) => `
+    <tr>
+      <td>${starButton(true, w.address)}</td>
+      <td>${addrLink(w.address)}</td>
+      <td>${scoreRing(w.latestRiskScore)}</td>
+      <td>${checkbox(w.checked, w.address)}</td>
+      <td>${fmtTime(w.starredAt)}</td>
+    </tr>
+  `).join("");
 }
 
 async function toggleClusterCard(source, bodyId, chevronId) {
@@ -434,8 +515,8 @@ async function toggleClusterCard(source, bodyId, chevronId) {
       return;
     }
     body.innerHTML = visible.map((m) => `
-      <div class="cc-member-row ${m.checked ? "is-checked" : ""}">
-        ${checkbox(m.checked, m.address)}
+      <div class="cc-member-row ${m.checked ? "is-checked" : ""} ${m.starred ? "is-starred" : ""}">
+        <span class="cell-actions">${checkbox(m.checked, m.address)}${starButton(m.starred, m.address)}</span>
         ${addrLink(m.address)}
         <span style="margin-left:auto;color:var(--muted-2);font-size:11px">${fmtTime(m.fundedAt)}</span>
       </div>
@@ -488,8 +569,8 @@ async function loadWatchlist() {
     return;
   }
   tbody.innerHTML = entries.map((e) => `
-    <tr class="${e.wallet.checked ? "is-checked" : ""}">
-      <td>${checkbox(e.wallet.checked, e.walletAddress)}</td>
+    <tr class="${e.wallet.checked ? "is-checked" : ""} ${e.wallet.starred ? "is-starred" : ""}">
+      <td><span class="cell-actions">${checkbox(e.wallet.checked, e.walletAddress)}${starButton(e.wallet.starred, e.walletAddress)}</span></td>
       <td>${addrLink(e.walletAddress)}</td>
       <td>${scoreRing(e.wallet.latestRiskScore)}</td>
       <td>${e.reason}</td>
@@ -525,8 +606,8 @@ async function loadDeployments() {
     const score = log ? log.score : 0;
     const rowId = `bd-${i}`;
     return `
-      <tr class="deployment-row ${d.deployer.checked ? "is-checked" : ""}" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'table-row' ? 'none' : 'table-row';">
-        <td>${checkbox(d.deployer.checked, d.deployerAddress)}</td>
+      <tr class="deployment-row ${d.deployer.checked ? "is-checked" : ""} ${d.deployer.starred ? "is-starred" : ""}" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'table-row' ? 'none' : 'table-row';">
+        <td><span class="cell-actions">${checkbox(d.deployer.checked, d.deployerAddress)}${starButton(d.deployer.starred, d.deployerAddress)}</span></td>
         <td>${addrLink(d.tokenAddress)}</td>
         <td>${addrLink(d.deployerAddress)}</td>
         <td>${scoreRing(score)}</td>
@@ -598,6 +679,7 @@ async function runInvestigation() {
 
     tbody.innerHTML = result.buyers.map((b) => `
       <tr class="${b.likelyDevWallet ? "dev-row" : ""}">
+        <td><button class="star-btn" title="Đánh dấu quan trọng" onclick="toggleStarredInline(this, '${b.address}')">${STAR_ICON}</button></td>
         <td>${addrLink(b.address)} ${b.likelyDevWallet ? '<span class="dev-flag">🚩 DEV</span>' : ""}</td>
         <td>${scoreRing(b.confidence)}</td>
         <td>${badge(b.isFreshWallet ? "Mới" : "Cũ", b.isFreshWallet)}</td>
@@ -624,7 +706,7 @@ document.getElementById("investigate-input").addEventListener("keydown", (e) => 
 async function refresh() {
   try {
     document.getElementById("hide-checked-toggle").checked = hideChecked;
-    await Promise.all([loadStats(), loadClusters(), loadWatchlist(), loadDeployments()]);
+    await Promise.all([loadStats(), loadStarred(), loadClusters(), loadWatchlist(), loadDeployments()]);
     document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
   } catch (err) {
     document.getElementById("meta").textContent = "lỗi tải dữ liệu — bot/API có đang chạy không?";

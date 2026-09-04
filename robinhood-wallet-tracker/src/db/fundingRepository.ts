@@ -85,7 +85,7 @@ export async function listClusterMembers(sourceAddress: string) {
 
   const wallets = await prisma.wallet.findMany({
     where: { address: { in: rows.map((r) => r.toAddress) } },
-    select: { address: true, checked: true, latestRiskScore: true },
+    select: { address: true, checked: true, starred: true, latestRiskScore: true },
   });
   const walletByAddress = new Map(wallets.map((w) => [w.address, w]));
 
@@ -94,6 +94,7 @@ export async function listClusterMembers(sourceAddress: string) {
     fundedAt: r.occurredAt,
     txHash: r.txHash,
     checked: walletByAddress.get(r.toAddress)?.checked ?? false,
+    starred: walletByAddress.get(r.toAddress)?.starred ?? false,
     latestRiskScore: walletByAddress.get(r.toAddress)?.latestRiskScore ?? 0,
   }));
 }

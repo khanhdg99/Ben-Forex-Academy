@@ -20,6 +20,10 @@ model Wallet {
   notes            String?
   checked          Boolean   @default(false)
   checkedAt        DateTime?
+  /// "I need to keep an eye on this one" — independent of `checked`
+  /// (checked = reviewed/done; starred = important, keep watching).
+  starred          Boolean   @default(false)
+  starredAt        DateTime?
 
   deployments   TokenDeployment[]
   scoreLogs     RiskScoreLog[]
@@ -27,6 +31,7 @@ model Wallet {
 
   @@index([fundingSource])
   @@index([latestRiskScore])
+  @@index([starred])
 }
 
 model TokenDeployment {

@@ -173,12 +173,23 @@ dashboard starts automatically alongside the bot. Open
 
 It shows, refreshing every 5 seconds:
 - Summary stats (tokens tracked, wallets seen, watchlist size, alerts in the last 24h)
+- **⭐ Ví quan trọng**: every wallet you've starred (see below), gathered
+  in one place regardless of where you found it
 - **Watchlist**: every wallet that crossed the alert threshold, with its
   latest score and a button to remove it
 - **Recent deployments**: every tracked token with its deployer, current
   risk score, and status badges (ERC-20-like? pool created? initial buy
   seen? rug detected?) — click a row to expand the full score breakdown
   (which rules fired and why)
+
+Every wallet row (watchlist, deployments, cluster members, token
+investigator results) carries two independent toggles, both persisted to
+Postgres (`Wallet.checked`/`.starred`):
+- ☑ **Đã check** — "I've reviewed this, done with it" — dims + strikes
+  through the row; the header's "Ẩn ví đã check" switch hides them entirely
+- ⭐ **Quan trọng** — "keep an eye on this one" — highlights the row and
+  adds it to the dedicated Ví quan trọng section above, so starred wallets
+  stay easy to find no matter which table they came from
 
 It's a thin read-only Express API (`src/web/server.ts`) over the same
 Postgres database the bot writes to, plus a single static HTML page

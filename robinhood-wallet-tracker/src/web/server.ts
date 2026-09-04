@@ -7,7 +7,7 @@ import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { removeFromWatchlist } from "../watchlist/watchlistManager.js";
 import { listClusters, listClusterMembers } from "../db/fundingRepository.js";
-import { setWalletChecked } from "../db/repositories.js";
+import { setWalletChecked, setWalletStarred, listStarredWallets } from "../db/repositories.js";
 import { investigateToken } from "../investigation/tokenInvestigator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -23,24 +23,27 @@ export function startWebServer() {
   app.use(express.static(path.join(__dirname, "../../public")));
 
   app.get("/api/stats", async (_req, res) => {
-    const [totalDeployments, totalWallets, watchlisted, alertableToday, totalClusters] = await Promise.all([
-      prisma.tokenDeployment.count(),
-      prisma.wallet.count(),
-      prisma.watchlistEntry.count(),
-      prisma.riskScoreLog.count({
-        where: {
-          score: { gte: env.ALERT_SCORE_THRESHOLD },
-          computedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-        },
-      }),
-      prisma.fundingCluster.count(),
-    ]);
+    const [totalDeployments, totalWallets, watchlisted, alertableToday, totalClusters, totalStarred] =
+      await Promise.all([
+        prisma.tokenDeployment.count(),
+        prisma.wallet.count(),
+        prisma.watchlistEntry.count(),
+        prisma.riskScoreLog.count({
+          where: {
+            score: { gte: env.ALERT_SCORE_THRESHOLD },
+            computedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+          },
+        }),
+        prisma.fundingCluster.count(),
+        prisma.wallet.count({ where: { starred: true } }),
+      ]);
     res.json({
       totalDeployments,
       totalWallets,
       watchlisted,
       alertableToday,
       totalClusters,
+      totalStarred,
       threshold: env.ALERT_SCORE_THRESHOLD,
     });
   });
@@ -87,6 +90,17 @@ export function startWebServer() {
     const checked = req.body?.checked === true;
     const wallet = await setWalletChecked(req.params.address as `0x${string}`, checked);
     res.json(toJson(wallet));
+  });
+
+  app.put("/api/wallets/:address/starred", async (req, res) => {
+    const starred = req.body?.starred === true;
+    const wallet = await setWalletStarred(req.params.address as `0x${string}`, starred);
+    res.json(toJson(wallet));
+  });
+
+  app.get("/api/starred", async (_req, res) => {
+    const wallets = await listStarredWallets();
+    res.json(toJson(wallets));
   });
 
   app.post("/api/investigate", async (req, res) => {
