@@ -418,7 +418,7 @@
           <div class="icon-wrap trash-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div>
           <div>
             <h2>🗑 Đã xoá</h2>
-            <div class="desc">Ví/cụm ví bạn đã tick — tự động xoá vĩnh viễn khỏi database sau 3 ngày nếu không bỏ tick</div>
+            <div class="desc">Ví/cụm ví bạn đã tick — tự động xoá vĩnh viễn khỏi database sau 24 giờ nếu không bỏ tick</div>
           </div>
         </div>
         <span class="count-pill" id="trash-count">0</span>
@@ -915,11 +915,13 @@ document.getElementById("investigate-input").addEventListener("keydown", (e) => 
 });
 
 function expiryBadge(expiresAt) {
-  const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
-  if (daysLeft <= 0) return { cls: "urgent", label: "Sắp xoá" };
-  if (daysLeft === 1) return { cls: "urgent", label: "Còn 1 ngày" };
-  if (daysLeft === 2) return { cls: "soon", label: "Còn 2 ngày" };
-  return { cls: "ok", label: `Còn ${daysLeft} ngày` };
+  const msLeft = new Date(expiresAt).getTime() - Date.now();
+  const hoursLeft = Math.ceil(msLeft / (60 * 60 * 1000));
+  if (hoursLeft <= 0) return { cls: "urgent", label: "Sắp xoá" };
+  if (hoursLeft === 1) return { cls: "urgent", label: "Còn 1 giờ" };
+  if (hoursLeft <= 6) return { cls: "urgent", label: `Còn ${hoursLeft} giờ` };
+  if (hoursLeft <= 12) return { cls: "soon", label: `Còn ${hoursLeft} giờ` };
+  return { cls: "ok", label: `Còn ${hoursLeft} giờ` };
 }
 
 let lastTrashSignature = "";

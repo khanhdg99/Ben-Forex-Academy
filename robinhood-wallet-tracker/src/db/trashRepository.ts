@@ -4,12 +4,12 @@ import { logger } from "../utils/logger.js";
 /**
  * Checking a wallet (☑ "đã check") now means "I'm done with this, get rid
  * of it" — it moves into the Trash list and, unless unchecked again within
- * this many days, is permanently deleted (the wallet, its deployments and
+ * this many hours, is permanently deleted (the wallet, its deployments and
  * every event/score tied to those, its watchlist entry, and its fan-out
  * cluster row if it's a cluster source).
  */
-const TRASH_RETENTION_DAYS = 3;
-const RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const TRASH_RETENTION_HOURS = 24;
+const RETENTION_MS = TRASH_RETENTION_HOURS * 60 * 60 * 1000;
 
 /** Every wallet currently checked ("in trash"), soonest-to-expire first. */
 export async function listTrashWallets() {

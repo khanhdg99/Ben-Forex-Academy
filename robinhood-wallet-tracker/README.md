@@ -190,7 +190,7 @@ Postgres (`Wallet.checked`/`.starred`):
   checkbox, the whole cluster) into the **🗑 Đã xoá** section — it
   disappears from its normal list right away. From there it's a real
   countdown: if you don't un-check it (the "Khôi phục" button in that
-  section) within **3 days**, it's **permanently deleted** from the
+  section) within **24 hours**, it's **permanently deleted** from the
   database — the wallet row itself, every token it deployed and all of
   that token's liquidity/swap/score events, its watchlist entry, and its
   fan-out cluster row if it was a cluster source. This is irreversible, so
@@ -203,7 +203,7 @@ Postgres (`Wallet.checked`/`.starred`):
   adds it to the dedicated Ví quan trọng section above, so starred wallets
   stay easy to find no matter which table they came from. Checking a
   starred wallet still moves it to Trash — starring only means "important
-  while it's still around," it doesn't protect against the 3-day timer.
+  while it's still around," it doesn't protect against the 24-hour timer.
 
 Every address shown anywhere on the dashboard links out to its
 **Zerion** wallet-overview page (`https://app.zerion.io/<address>/overview`)
