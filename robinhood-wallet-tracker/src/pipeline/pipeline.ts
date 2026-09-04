@@ -2,8 +2,15 @@ import type { Address } from "viem";
 import { watchContractCreations } from "../chain/contractCreationWatcher.js";
 import { watchPoolCreations } from "../chain/poolCreationWatcher.js";
 import { watchPoolActivity, getReserves } from "../chain/liquidityWatcher.js";
+import { watchValueTransfers } from "../chain/valueTransferWatcher.js";
 import { httpClient } from "../chain/client.js";
-import { enqueueDeployment, enqueuePoolCreated, enqueueInitialBuy, enqueueRug } from "../queue/producer.js";
+import {
+  enqueueDeployment,
+  enqueuePoolCreated,
+  enqueueInitialBuy,
+  enqueueRug,
+  enqueueFundingTransfer,
+} from "../queue/producer.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 
@@ -161,13 +168,24 @@ export function startPipeline() {
     );
   });
 
+  const stopValueTransferWatcher = watchValueTransfers((event) => {
+    void enqueueFundingTransfer({
+      from: event.from,
+      to: event.to,
+      txHash: event.txHash,
+      valueWei: event.valueWei.toString(),
+      occurredAtIso: new Date(Number(event.timestamp) * 1000).toISOString(),
+    });
+  });
+
   logger.info(
     { chainId: httpClient.chain?.id },
-    "pipeline started: watching contract creations + pool creations",
+    "pipeline started: watching contract creations + pool creations + value transfers",
   );
 
   return () => {
     stopContractWatcher();
     stopPoolWatcher();
+    stopValueTransferWatcher();
   };
 }

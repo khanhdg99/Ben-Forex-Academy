@@ -101,6 +101,14 @@
     <div class="stats" id="stats"></div>
 
     <section>
+      <h2>Cụm ví nghi vấn (fan-out) <span class="count" id="clusters-count"></span></h2>
+      <table id="clusters-table">
+        <thead><tr><th>Ví nguồn (bơm tiền)</th><th>Số ví con mới</th><th>Phát hiện lúc</th><th>Cập nhật lúc</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
       <h2>Watchlist <span class="count" id="watchlist-count"></span></h2>
       <table id="watchlist-table">
         <thead><tr><th>Wallet</th><th>Score</th><th>Lý do</th><th>Thêm lúc</th><th></th></tr></thead>
@@ -158,6 +166,7 @@ async function loadStats() {
     <div class="stat"><div class="label">Ví đã ghi nhận</div><div class="value">${s.totalWallets}</div></div>
     <div class="stat"><div class="label">Đang trong watchlist</div><div class="value">${s.watchlisted}</div></div>
     <div class="stat"><div class="label">Cảnh báo (24h)</div><div class="value">${s.alertableToday}</div></div>
+    <div class="stat"><div class="label">Cụm ví fan-out</div><div class="value">${s.totalClusters}</div></div>
   `;
   document.getElementById("threshold").textContent = s.threshold;
 }
@@ -184,6 +193,53 @@ async function loadWatchlist() {
       <td><button class="rm" onclick="removeWatch('${e.walletAddress}')">Bỏ theo dõi</button></td>
     </tr>
   `).join("");
+}
+
+async function toggleClusterMembers(source, rowId) {
+  const row = document.getElementById(rowId);
+  if (row.style.display === "table-row") {
+    row.style.display = "none";
+    return;
+  }
+  row.style.display = "table-row";
+  const cell = row.querySelector("td");
+  cell.innerHTML = `<div class="breakdown"><span class="empty">đang tải...</span></div>`;
+  try {
+    const members = await fetchJson(`/api/clusters/${source}/members`);
+    if (members.length === 0) {
+      cell.innerHTML = `<div class="breakdown"><span class="empty">Không có ví con</span></div>`;
+      return;
+    }
+    cell.innerHTML = `<div class="breakdown">${members.map((m) => `
+      <div class="breakdown-item"><span>${addrLink(m.address)}</span><span class="pts" style="font-weight:400;color:var(--muted)">${fmtTime(m.fundedAt)}</span></div>
+    `).join("")}</div>`;
+  } catch (err) {
+    cell.innerHTML = `<div class="breakdown"><span class="empty">Lỗi tải danh sách ví con</span></div>`;
+  }
+}
+
+async function loadClusters() {
+  const clusters = await fetchJson("/api/clusters");
+  document.getElementById("clusters-count").textContent = `(${clusters.length})`;
+  const tbody = document.querySelector("#clusters-table tbody");
+  if (clusters.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">Chưa phát hiện cụm ví nào</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = clusters.map((c, i) => {
+    const rowId = `cl-${i}`;
+    return `
+      <tr class="deployment-row" onclick="toggleClusterMembers('${c.sourceAddress}', '${rowId}')">
+        <td>${addrLink(c.sourceAddress)}</td>
+        <td>${c.walletCount}</td>
+        <td>${fmtTime(c.firstDetectedAt)}</td>
+        <td>${fmtTime(c.lastUpdatedAt)}</td>
+      </tr>
+      <tr class="breakdown-row" id="${rowId}" style="display:none">
+        <td colspan="4"></td>
+      </tr>
+    `;
+  }).join("");
 }
 
 function breakdownHtml(log) {
@@ -230,7 +286,7 @@ async function loadDeployments() {
 
 async function refresh() {
   try {
-    await Promise.all([loadStats(), loadWatchlist(), loadDeployments()]);
+    await Promise.all([loadStats(), loadClusters(), loadWatchlist(), loadDeployments()]);
     document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
   } catch (err) {
     document.getElementById("meta").textContent = "lỗi tải dữ liệu — bot/API có đang chạy không?";

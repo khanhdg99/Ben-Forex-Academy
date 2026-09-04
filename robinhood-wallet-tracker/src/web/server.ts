@@ -5,6 +5,7 @@ import { prisma } from "../db/prisma.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { removeFromWatchlist } from "../watchlist/watchlistManager.js";
+import { listClusters, listClusterMembers } from "../db/fundingRepository.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -19,7 +20,7 @@ export function startWebServer() {
   app.use(express.static(path.join(__dirname, "../../public")));
 
   app.get("/api/stats", async (_req, res) => {
-    const [totalDeployments, totalWallets, watchlisted, alertableToday] = await Promise.all([
+    const [totalDeployments, totalWallets, watchlisted, alertableToday, totalClusters] = await Promise.all([
       prisma.tokenDeployment.count(),
       prisma.wallet.count(),
       prisma.watchlistEntry.count(),
@@ -29,8 +30,16 @@ export function startWebServer() {
           computedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
         },
       }),
+      prisma.fundingCluster.count(),
     ]);
-    res.json({ totalDeployments, totalWallets, watchlisted, alertableToday, threshold: env.ALERT_SCORE_THRESHOLD });
+    res.json({
+      totalDeployments,
+      totalWallets,
+      watchlisted,
+      alertableToday,
+      totalClusters,
+      threshold: env.ALERT_SCORE_THRESHOLD,
+    });
   });
 
   app.get("/api/watchlist", async (_req, res) => {
@@ -59,6 +68,16 @@ export function startWebServer() {
       take: limit,
     });
     res.json(toJson(deployments));
+  });
+
+  app.get("/api/clusters", async (_req, res) => {
+    const clusters = await listClusters();
+    res.json(toJson(clusters));
+  });
+
+  app.get("/api/clusters/:source/members", async (req, res) => {
+    const members = await listClusterMembers(req.params.source);
+    res.json(toJson(members));
   });
 
   app.get("/api/wallets/:address", async (req, res) => {

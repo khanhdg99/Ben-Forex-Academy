@@ -37,4 +37,12 @@ export interface RugJobData {
   minutesAfterPoolCreation: number;
 }
 
-export type JobName = "deployment" | "pool-created" | "initial-buy" | "rug";
+export interface FundingTransferJobData {
+  from: string;
+  to: string;
+  txHash: string;
+  valueWei: string;
+  occurredAtIso: string;
+}
+
+export type JobName = "deployment" | "pool-created" | "initial-buy" | "rug" | "funding-transfer";

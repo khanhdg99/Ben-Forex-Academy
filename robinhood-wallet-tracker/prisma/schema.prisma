@@ -104,3 +104,33 @@ model WatchlistEntry {
   reason        String
   alertsEnabled Boolean  @default(true)
 }
+
+/// Every native-ETH transfer worth noting (above FANOUT_MIN_VALUE_ETH) into a
+/// wallet that had never sent a transaction before — the raw material for
+/// detecting "1 funder -> many brand-new sub-wallets" fan-out patterns.
+model FundingTransfer {
+  id               String   @id @default(cuid())
+  fromAddress      String
+  toAddress        String
+  txHash           String
+  valueWei         String
+  occurredAt       DateTime
+  toWasFreshWallet Boolean
+
+  @@index([fromAddress, occurredAt])
+  @@index([toAddress])
+}
+
+/// A funding source that has fanned out to >= FANOUT_MIN_WALLETS fresh
+/// wallets within FANOUT_WINDOW_MINUTES. Every wallet ever funded (fresh)
+/// by sourceAddress is treated as a cluster member for buyer-matching,
+/// not just the ones inside the window that first tripped the threshold.
+model FundingCluster {
+  id              String   @id @default(cuid())
+  sourceAddress   String   @unique
+  firstDetectedAt DateTime @default(now())
+  lastUpdatedAt   DateTime @updatedAt
+  walletCount     Int
+
+  @@index([sourceAddress])
+}

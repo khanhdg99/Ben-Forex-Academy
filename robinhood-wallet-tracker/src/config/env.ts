@@ -19,6 +19,12 @@ const envSchema = z.object({
   RUG_REMOVAL_PCT: z.coerce.number().default(50),
   ALERT_SCORE_THRESHOLD: z.coerce.number().default(60),
 
+  // Funding fan-out / wallet cluster detection (dev sybil wallets or
+  // multi-wallet snipers funding a batch of brand-new burner wallets).
+  FANOUT_WINDOW_MINUTES: z.coerce.number().default(60),
+  FANOUT_MIN_WALLETS: z.coerce.number().default(3),
+  FANOUT_MIN_VALUE_ETH: z.coerce.number().default(0.0005),
+
   DATABASE_URL: z.string().default("postgresql://postgres:postgres@localhost:5432/robinhood_tracker"),
   REDIS_URL: z.string().default("redis://localhost:6379"),
 

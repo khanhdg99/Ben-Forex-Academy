@@ -18,21 +18,27 @@ that could not directly reach `docs.robinhood.com` to confirm firsthand.
 
 ```
 RPC/WebSocket Listener (viem)
-  → filters: contract-creation txs, Uniswap PairCreated/PoolCreated logs
+  → filters: contract-creation txs, Uniswap PairCreated/PoolCreated logs,
+             native-ETH value transfers (fan-out detection)
   → Redis (BullMQ) queue for realtime, retry-safe processing
   → Detection Engine (rule-based risk scoring, src/detection/)
-  → Postgres (wallets, token deployments, liquidity/swap events, score log)
+  → Fan-out / Wallet Cluster Detector (src/pipeline/handlers.ts, src/db/fundingRepository.ts)
+  → Postgres (wallets, token deployments, liquidity/swap events, score log,
+             funding transfers + clusters)
   → Watchlist Manager
-  → Telegram Alert Service
+  → Telegram Alert Service (deployer risk alerts + cluster-buy copy-trade alerts)
   → Web Dashboard (reads the same Postgres DB, http://localhost:3000)
 ```
 
 - `src/chain/` — viem clients + watchers (blocks, contract creation, pool
-  creation, pool swap/burn activity), plus a Blockscout REST client for
+  creation, pool swap/burn activity, native-ETH value transfers), a
+  fresh-wallet (nonce-0) check, plus a Blockscout REST client for
   funding-source lookback.
 - `src/detection/` — the scoring rules and the engine that runs them
   (`rules.ts`, `scoring.ts`).
-- `src/db/` — Prisma schema + repository functions.
+- `src/db/` — Prisma schema + repository functions (`repositories.ts` for
+  wallets/deployments/scores, `fundingRepository.ts` for the fan-out
+  cluster detector).
 - `src/pipeline/` — wires the chain watchers to the queue, and manages the
   time-boxed "watch this pool for an initial buy / a rug" surveillance
   windows.
@@ -185,7 +191,43 @@ deploy separately.
 2. Add the bot to a chat/group/channel, find the chat ID (e.g. via
    `getUpdates` on the Bot API, or a helper bot like @userinfobot).
 3. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`.
-4. `/watchlist` in the chat lists currently-watchlisted wallets.
+4. `/watchlist` in the chat lists currently-watchlisted wallets. `/clusters`
+   lists detected wallet fan-out clusters (see below).
+
+## Wallet cluster (fan-out) detection — copy-trade signals
+
+Separate from the deployer risk-scoring above: this watches every native-ETH
+transfer on the chain (`src/chain/valueTransferWatcher.ts`) for the pattern
+of **one wallet funding a batch of brand-new burner wallets** (nonce 0, i.e.
+never sent a transaction before) — a common setup either for a dev prepping
+fake buyer wallets, or a multi-wallet sniper/trading group spinning up fresh
+wallets to buy a new listing. When a single funding source has funded
+`FANOUT_MIN_WALLETS` (default 3) or more fresh wallets within
+`FANOUT_WINDOW_MINUTES` (default 60), it's flagged as a **cluster** and shown
+in the dashboard's "Cụm ví nghi vấn" section and via a Telegram alert.
+
+From then on, **any purchase by a wallet belonging to that cluster on a
+freshly-launched token** fires an immediate, separate Telegram alert
+("🎯 Cluster wallet buying") — independent of the deployer's own risk score.
+That's the actionable moment: the alert names the buyer wallet and the
+token, so you can react fast (e.g. add that wallet to a copy-trading tool
+like Bloom EVM) while it's still early.
+
+Tuning (`.env`):
+- `FANOUT_MIN_WALLETS` — lower catches clusters faster but with more false
+  positives (e.g. a legitimate faucet or exchange hot wallet funding many
+  users also looks like a fan-out); higher requires more confirmation first.
+- `FANOUT_WINDOW_MINUTES` — how spread out the funding transactions can be
+  and still count as one operation.
+- `FANOUT_MIN_VALUE_ETH` — filters out dust transfers so tiny/irrelevant
+  transfers don't get evaluated.
+
+Note: this is a heuristic, not proof of coordinated behavior — verify a
+flagged cluster's wallets yourself on the explorer before acting on it, and
+be aware that copy-trading brand-new memecoins is extremely high risk
+regardless of how the wallet was found (rugs, honeypots, and wallets that
+buy early but still lose money are all common on this chain — see
+`docs/ROBINHOOD_CHAIN_FACTS.md`).
 
 ## Scoring model
 

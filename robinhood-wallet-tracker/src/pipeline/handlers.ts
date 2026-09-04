@@ -8,10 +8,22 @@ import {
   saveRiskScore,
 } from "../db/repositories.js";
 import { findFundingSource } from "../chain/blockscoutClient.js";
+import { isFreshWallet } from "../chain/walletFreshness.js";
 import { scoreDeploymentCase } from "../detection/scoring.js";
 import type { DeploymentCase } from "../detection/types.js";
 import { maybeAddToWatchlist, isWatchlisted } from "../watchlist/watchlistManager.js";
-import { sendRiskAlert, sendWatchlistReactivationAlert } from "../alerts/telegram.js";
+import {
+  sendRiskAlert,
+  sendWatchlistReactivationAlert,
+  sendClusterAlert,
+  sendClusterBuyAlert,
+} from "../alerts/telegram.js";
+import {
+  recordFundingTransfer,
+  countRecentFreshFundedWallets,
+  upsertFundingCluster,
+  findClusterForWallet,
+} from "../db/fundingRepository.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import type {
@@ -19,6 +31,7 @@ import type {
   PoolCreatedJobData,
   InitialBuyJobData,
   RugJobData,
+  FundingTransferJobData,
 } from "../queue/types.js";
 import { prisma } from "../db/prisma.js";
 
@@ -162,12 +175,13 @@ export async function handlePoolCreated(data: PoolCreatedJobData) {
 
 export async function handleInitialBuy(data: InitialBuyJobData) {
   const tokenAddress = data.tokenAddress as Address;
+  const buyer = data.buyer as Address;
 
   const persisted = await recordLiquidityEvent({
     tokenAddress,
     type: "INITIAL_BUY",
     poolAddress: data.poolAddress as Address,
-    actorAddress: data.buyer as Address,
+    actorAddress: buyer,
     txHash: data.txHash,
     occurredAt: new Date(data.occurredAtIso),
     amountPct: data.sizePct,
@@ -176,6 +190,21 @@ export async function handleInitialBuy(data: InitialBuyJobData) {
   if (!persisted) return;
 
   await rescoreAndNotify(tokenAddress);
+
+  // Copy-trade signal: is the buyer a wallet that was freshly funded by a
+  // known fan-out cluster (see handleFundingTransfer)? If so, this is
+  // exactly the "cluster wallet buying a new listing" moment worth acting
+  // on fast, independent of the deployer's own risk score.
+  const cluster = await findClusterForWallet(buyer);
+  if (cluster) {
+    await sendClusterBuyAlert({
+      buyer,
+      tokenAddress,
+      poolAddress: data.poolAddress,
+      sizePct: data.sizePct,
+      clusterSource: cluster.sourceAddress,
+    });
+  }
 }
 
 export async function handleRug(data: RugJobData) {
@@ -199,4 +228,39 @@ export async function handleRug(data: RugJobData) {
   }).catch(() => undefined);
 
   await rescoreAndNotify(tokenAddress);
+}
+
+/**
+ * Persists a native-ETH transfer and checks whether the sender has now
+ * fanned out to enough fresh (never-sent-a-tx) wallets within the fan-out
+ * window to count as a "wallet cluster" — the pattern of a single funder
+ * spinning up a batch of brand-new burner wallets, which is the signal
+ * this feature exists to catch (whether it's a dev prepping sybil buyers,
+ * or a multi-wallet sniper worth copy-trading via their sub-wallets).
+ */
+export async function handleFundingTransfer(data: FundingTransferJobData) {
+  const from = data.from as Address;
+  const to = data.to as Address;
+
+  const fresh = await isFreshWallet(to);
+
+  await recordFundingTransfer({
+    from,
+    to,
+    txHash: data.txHash,
+    valueWei: BigInt(data.valueWei),
+    occurredAt: new Date(data.occurredAtIso),
+    toWasFreshWallet: fresh,
+  });
+
+  if (!fresh) return;
+
+  const members = await countRecentFreshFundedWallets(from);
+  if (members.length < env.FANOUT_MIN_WALLETS) return;
+
+  const { grew } = await upsertFundingCluster(from, members.length);
+  if (!grew) return;
+
+  logger.info({ source: from, memberCount: members.length }, "funding fan-out cluster detected");
+  await sendClusterAlert(from, members);
 }
