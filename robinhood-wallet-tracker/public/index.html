@@ -199,6 +199,29 @@
   }
   button.rm:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
 
+  .investigate-panel {
+    background: linear-gradient(165deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border-soft); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 40px;
+  }
+  .investigate-form { display: flex; gap: 10px; margin-top: 12px; }
+  .investigate-form input {
+    flex: 1; background: var(--panel-3); border: 1px solid var(--border); color: var(--text);
+    border-radius: 9px; padding: 10px 13px; font-family: ui-monospace, monospace; font-size: 12.5px;
+    outline: none; transition: .1s;
+  }
+  .investigate-form input:focus { border-color: var(--accent); }
+  .investigate-form button {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: none; color: #0b0e17;
+    font-weight: 700; font-size: 12.5px; border-radius: 9px; padding: 0 20px; cursor: pointer; transition: .1s;
+  }
+  .investigate-form button:hover { filter: brightness(1.08); }
+  .investigate-form button:disabled { opacity: 0.5; cursor: default; }
+  .investigate-meta { color: var(--muted-2); font-size: 11.5px; margin-top: 10px; }
+  .dev-flag { color: var(--red); font-weight: 700; font-size: 11px; }
+  tr.dev-row { background: rgba(240,89,106,0.05); }
+  tr.dev-row:hover { background: rgba(240,89,106,0.09) !important; }
+
   footer { text-align: center; color: var(--muted-2); font-size: 11.5px; padding: 30px 20px 40px; }
   code.inline { background: var(--panel-3); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, monospace; font-size: 11px; }
 
@@ -231,6 +254,7 @@
       </div>
     </div>
     <nav class="subnav">
+      <a href="#investigate">Kiểm tra token</a>
       <a href="#clusters">Cụm ví</a>
       <a href="#watchlist">Watchlist</a>
       <a href="#deployments">Deployments</a>
@@ -238,6 +262,32 @@
   </header>
 
   <main>
+    <section id="investigate" class="investigate-panel">
+      <div class="section-title">
+        <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <div>
+          <h2>Kiểm tra token — tìm ví dev đang tự mua</h2>
+          <div class="desc">Dán địa chỉ token bất kỳ (kể cả token bot chưa từng thấy) để phân tích ví mua sớm</div>
+        </div>
+      </div>
+      <div class="investigate-form">
+        <input id="investigate-input" type="text" placeholder="0x... địa chỉ token cần kiểm tra" />
+        <button id="investigate-btn" onclick="runInvestigation()">Phân tích</button>
+      </div>
+      <div class="investigate-meta" id="investigate-meta"></div>
+      <div class="table-wrap" id="investigate-results" style="display:none;margin-top:14px">
+        <table>
+          <thead>
+            <tr>
+              <th>Ví mua</th><th>Độ tin cậy</th><th>Ví mới?</th><th>Chỉ mua token này?</th>
+              <th>Nhóm cùng số lượng</th><th>Phút sau pool</th><th>Số lượng mua</th>
+            </tr>
+          </thead>
+          <tbody id="investigate-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <div class="stats" id="stats"></div>
 
     <section id="clusters">
@@ -492,6 +542,84 @@ async function loadDeployments() {
     `;
   }).join("");
 }
+
+function formatAmount(raw, decimals) {
+  if (decimals === null || decimals === undefined) return raw;
+  try {
+    const value = BigInt(raw);
+    const divisor = 10n ** BigInt(decimals);
+    const whole = value / divisor;
+    const frac = value % divisor;
+    const fracStr = frac.toString().padStart(decimals, "0").slice(0, 3);
+    return `${whole.toLocaleString("en-US")}${fracStr !== "000" ? "." + fracStr : ""}`;
+  } catch (e) {
+    return raw;
+  }
+}
+
+async function runInvestigation() {
+  const input = document.getElementById("investigate-input");
+  const btn = document.getElementById("investigate-btn");
+  const meta = document.getElementById("investigate-meta");
+  const resultsWrap = document.getElementById("investigate-results");
+  const tbody = document.getElementById("investigate-tbody");
+  const tokenAddress = input.value.trim();
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) {
+    meta.textContent = "Địa chỉ token không hợp lệ.";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Đang phân tích...";
+  meta.textContent = "Đang tra cứu on-chain (có thể mất vài giây tới vài chục giây)...";
+  resultsWrap.style.display = "none";
+
+  try {
+    const result = await fetchJson("/api/investigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tokenAddress }),
+    });
+
+    if (!result.poolAddress) {
+      meta.textContent = "Không tìm được pool/giao dịch mua nào cho token này.";
+      return;
+    }
+
+    const devCount = result.buyers.filter((b) => b.likelyDevWallet).length;
+    meta.innerHTML = `Pool: ${addrLink(result.poolAddress)} (${result.poolSource === "tracked" ? "bot đã theo dõi" : "suy luận từ lịch sử transfer"})
+      · Đã phân tích ${result.buyersAnalyzed} ví mua sớm nhất · <span class="dev-flag">${devCount} ví nghi là dev</span>`;
+
+    if (result.buyers.length === 0) {
+      resultsWrap.style.display = "none";
+      return;
+    }
+
+    tbody.innerHTML = result.buyers.map((b) => `
+      <tr class="${b.likelyDevWallet ? "dev-row" : ""}">
+        <td>${addrLink(b.address)} ${b.likelyDevWallet ? '<span class="dev-flag">🚩 DEV</span>' : ""}</td>
+        <td>${scoreRing(b.confidence)}</td>
+        <td>${badge(b.isFreshWallet ? "Mới" : "Cũ", b.isFreshWallet)}</td>
+        <td>${b.onlyBoughtThisToken === null ? "?" : badge(b.onlyBoughtThisToken ? "Chỉ token này" : "Có token khác", b.onlyBoughtThisToken)}</td>
+        <td>${b.sameAmountGroupSize >= 2 ? badge(`${b.sameAmountGroupSize} ví cùng SL`, true) : "–"}</td>
+        <td>${b.minutesAfterPoolCreation !== null ? b.minutesAfterPoolCreation.toFixed(1) : "?"}</td>
+        <td>${formatAmount(b.amountBought, result.decimals)} ${result.symbol || ""}</td>
+      </tr>
+    `).join("");
+    resultsWrap.style.display = "block";
+  } catch (err) {
+    meta.textContent = "Lỗi khi phân tích — kiểm tra lại địa chỉ token hoặc log của bot.";
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Phân tích";
+  }
+}
+
+document.getElementById("investigate-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runInvestigation();
+});
 
 async function refresh() {
   try {

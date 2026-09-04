@@ -86,3 +86,82 @@ export async function countHistoricalDeployments(address: Address): Promise<numb
   if (!data) return 0;
   return data.items.filter((tx) => tx.to === null).length;
 }
+
+interface BlockscoutTokenTransfer {
+  from: { hash: string };
+  to: { hash: string };
+  timestamp: string;
+  total: { value: string } | null;
+  tx_hash: string;
+  token?: { address: string; decimals?: string | null; symbol?: string | null } | null;
+}
+
+interface BlockscoutTokenTransferListResponse {
+  items: BlockscoutTokenTransfer[];
+  next_page_params: Record<string, unknown> | null;
+}
+
+export interface TokenTransfer {
+  from: Address;
+  to: Address;
+  value: bigint;
+  timestamp: Date;
+  txHash: string;
+}
+
+export interface TokenTransfersResult {
+  transfers: TokenTransfer[];
+  /** Static per-token metadata read off the first transfer item, if present. */
+  decimals: number | null;
+  symbol: string | null;
+}
+
+/** All ERC-20 Transfer events for a token contract (used to find its buyers). */
+export async function getTokenTransfers(tokenAddress: Address, limit = 300): Promise<TokenTransfersResult> {
+  const data = await blockscoutGet<BlockscoutTokenTransferListResponse>(
+    `/tokens/${tokenAddress}/transfers`,
+  );
+  if (!data) return { transfers: [], decimals: null, symbol: null };
+
+  const items = data.items.slice(0, limit);
+  const meta = items.find((t) => t.token)?.token;
+
+  return {
+    transfers: items.map((t) => ({
+      from: t.from.hash as Address,
+      to: t.to.hash as Address,
+      value: BigInt(t.total?.value ?? "0"),
+      timestamp: new Date(t.timestamp),
+      txHash: t.tx_hash,
+    })),
+    decimals: meta?.decimals ? Number(meta.decimals) : null,
+    symbol: meta?.symbol ?? null,
+  };
+}
+
+/**
+ * Whether `address` has ever received any ERC-20 token OTHER than
+ * `tokenAddress` — i.e. `false` here means "this wallet's entire inbound
+ * token history is just this one token," the core dev-wallet signal
+ * requested: a throwaway wallet created and used to buy exactly one token.
+ *
+ * Returns `null` when we can't determine this (API call failed, or the
+ * wallet's inbound-transfer history looks empty even though we know it
+ * received this token — likely an API shape mismatch worth checking against
+ * the live Blockscout docs). Checks one page of recent inbound transfers, so
+ * a wallet with a long, mixed history might not be fully paged through —
+ * treat a `false` result (exclusive to this token) as a strong signal, not
+ * absolute proof.
+ */
+export async function hasOnlyEverReceivedToken(
+  address: Address,
+  tokenAddress: Address,
+): Promise<boolean | null> {
+  const data = await blockscoutGet<BlockscoutTokenTransferListResponse>(
+    `/addresses/${address}/token-transfers?type=ERC-20&filter=to`,
+  );
+  if (!data || data.items.length === 0) return null;
+  return data.items.every(
+    (t) => t.token?.address?.toLowerCase() === tokenAddress.toLowerCase(),
+  );
+}

@@ -229,6 +229,40 @@ regardless of how the wallet was found (rugs, honeypots, and wallets that
 buy early but still lose money are all common on this chain — see
 `docs/ROBINHOOD_CHAIN_FACTS.md`).
 
+## Token investigator — find likely dev-controlled buyer wallets
+
+Paste any token address into the "Kiểm tra token" panel at the top of the
+dashboard (or run `npm run investigate -- 0xTokenAddress` from the
+terminal) and the bot analyzes its early buyers — including tokens it
+never tracked itself (deployed before the bot was running), by inferring
+the pool address from the token's own transfer history when needed.
+
+For each buyer wallet, it checks two signals:
+
+1. **Core signal — exclusivity**: has this wallet ever received any ERC-20
+   token other than this one? A wallet whose entire inbound-token history
+   is just this single token is very likely a throwaway created to buy
+   exactly one launch — a real trader's wallet has bought other things
+   before. This alone is enough to flag a wallet.
+2. **Bonus signals** (raise confidence further, not required): the wallet
+   is brand-new (nonce 0), it bought within the first 10 minutes of the
+   pool, and/or multiple other analyzed wallets bought the *exact same*
+   token amount — a classic sign of a scripted batch of buys from one
+   operator rather than independent organic buyers.
+
+Each buyer gets a 0-100 confidence score (`src/investigation/tokenInvestigator.ts`);
+`>= 50` (which "exclusivity" alone already reaches) is flagged 🚩 as a
+likely dev wallet. Analysis is capped at the first 30 distinct buyers and
+does one Blockscout lookup per wallet, so it can take a few seconds to tens
+of seconds depending on how many buyers there were.
+
+Verified end-to-end in this repo's sandbox with a mocked API response
+(screenshot in the PR/session) — the actual Blockscout token-transfer
+lookups (`src/chain/blockscoutClient.ts`'s `getTokenTransfers` /
+`hasOnlyEverReceivedToken`) couldn't be exercised against live data there
+(egress blocked); run it once against a real token to confirm the response
+shape still matches, per the usual Blockscout-API caveat in that file.
+
 ## Scoring model
 
 Each rule in `src/detection/rules.ts` contributes points independently based

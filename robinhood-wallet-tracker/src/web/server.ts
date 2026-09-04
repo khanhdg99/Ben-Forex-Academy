@@ -1,12 +1,14 @@
 import express from "express";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isAddress } from "viem";
 import { prisma } from "../db/prisma.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { removeFromWatchlist } from "../watchlist/watchlistManager.js";
 import { listClusters, listClusterMembers } from "../db/fundingRepository.js";
 import { setWalletChecked } from "../db/repositories.js";
+import { investigateToken } from "../investigation/tokenInvestigator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,6 +87,21 @@ export function startWebServer() {
     const checked = req.body?.checked === true;
     const wallet = await setWalletChecked(req.params.address as `0x${string}`, checked);
     res.json(toJson(wallet));
+  });
+
+  app.post("/api/investigate", async (req, res) => {
+    const tokenAddress = req.body?.tokenAddress;
+    if (typeof tokenAddress !== "string" || !isAddress(tokenAddress)) {
+      res.status(400).json({ error: "invalid tokenAddress" });
+      return;
+    }
+    try {
+      const result = await investigateToken(tokenAddress);
+      res.json(toJson(result));
+    } catch (err) {
+      logger.error({ err, tokenAddress }, "token investigation failed");
+      res.status(500).json({ error: "investigation failed" });
+    }
   });
 
   app.get("/api/wallets/:address", async (req, res) => {

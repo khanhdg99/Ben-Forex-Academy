@@ -11,6 +11,7 @@
     "step1:test-connection": "tsx scripts/testConnection.ts",
     "step2:log-events": "tsx scripts/logDeploymentEvents.ts",
     "web": "tsx watch src/web/server.ts",
+    "investigate": "tsx scripts/investigateToken.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
