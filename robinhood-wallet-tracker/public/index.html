@@ -146,12 +146,15 @@
 
   /* cards */
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
   .cluster-card {
     background: linear-gradient(165deg, var(--panel-2), var(--panel));
     border: 1px solid var(--border-soft);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: hidden;
+    animation: fadeInUp .25s ease;
+    transition: border-color .2s ease, box-shadow .2s ease;
   }
   .cluster-card.is-starred {
     border-color: var(--yellow);
@@ -173,6 +176,7 @@
   .cc-members { border-top: 1px solid var(--border-soft); padding: 4px 8px; max-height: 260px; overflow-y: auto; }
   .cc-member-row {
     display: flex; align-items: center; gap: 9px; padding: 8px 8px; border-radius: 8px;
+    animation: fadeInUp .2s ease; transition: opacity .2s ease, background-color .15s ease;
   }
   .cc-member-row:hover { background: var(--panel-3); }
   .cc-member-row.is-checked { opacity: 0.42; }
@@ -597,13 +601,33 @@ function clusterBodyId(source) {
   return `cc-body-${source.toLowerCase()}`;
 }
 
+// Per-card signature of the last-rendered member list — lets a refresh
+// skip touching an open card's body entirely when nothing in it actually
+// changed, which is most ticks. Keyed by bodyId, so it survives the outer
+// grid's reconciliation (the body div itself is never recreated once open).
+const clusterBodySignatures = new Map();
+
 async function populateClusterBody(source, bodyId) {
   const body = document.getElementById(bodyId);
   if (!body) return;
-  body.innerHTML = `<div class="cc-member-row"><span class="empty" style="padding:14px">đang tải...</span></div>`;
+
+  // Only show the loading placeholder the first time a card is opened —
+  // on every later refresh the body already has real content, and
+  // blanking it to "đang tải..." before every re-fetch is exactly what
+  // was collapsing the card's height and yanking the scroll position.
+  const isFirstLoad = body.children.length === 0;
+  if (isFirstLoad) {
+    body.innerHTML = `<div class="cc-member-row"><span class="empty" style="padding:14px">đang tải...</span></div>`;
+  }
+
   try {
     // Server already excludes checked members (moved to Trash — see loadTrash()).
     const members = await fetchJson(`/api/clusters/${source}/members`);
+
+    const signature = members.map((m) => `${m.address}:${m.checked}:${m.starred}:${m.valueUsd}:${m.wasFresh}`).join("|");
+    if (!isFirstLoad && signature === clusterBodySignatures.get(bodyId)) return;
+    clusterBodySignatures.set(bodyId, signature);
+
     if (members.length === 0) {
       body.innerHTML = `<div class="empty">Không có ví con</div>`;
       return;
@@ -618,7 +642,10 @@ async function populateClusterBody(source, bodyId) {
       </div>
     `).join("");
   } catch (err) {
-    body.innerHTML = `<div class="empty">Lỗi tải danh sách ví con</div>`;
+    // A transient fetch error should never wipe out perfectly good content
+    // that's already on screen — only show the error state if there was
+    // nothing to fall back to.
+    if (isFirstLoad) body.innerHTML = `<div class="empty">Lỗi tải danh sách ví con</div>`;
   }
 }
 
@@ -635,59 +662,103 @@ async function toggleClusterCard(source, bodyId) {
   await populateClusterBody(source, bodyId);
 }
 
-// Signature of the last-rendered cluster list (source+count+updatedAt per
-// cluster). When a refresh sees the same signature, the outer grid is left
-// completely untouched — no rebuild, no risk of disturbing an open card —
-// only the currently-open cards' member lists get refreshed in place.
-let lastClustersSignature = "";
+function clusterCardId(source) {
+  return `cluster-card-${source.toLowerCase()}`;
+}
 
+function clusterCardHtml(c, isOpen) {
+  const bodyId = clusterBodyId(c.sourceAddress);
+  return `
+    <div class="cluster-card ${c.starred ? "is-starred" : ""}" id="${clusterCardId(c.sourceAddress)}">
+      <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
+        <div>
+          ${addrLink(c.sourceAddress)}
+          <div class="cc-meta">${clusterMetaHtml(c)}</div>
+        </div>
+        <div class="cc-actions">${clusterActionsHtml(c)}</div>
+      </div>
+      <div class="cc-members" id="${bodyId}" style="display:${isOpen ? "block" : "none"}"></div>
+    </div>
+  `;
+}
+
+function clusterMetaHtml(c) {
+  const match = matchTypeInfo(c.matchType);
+  return `
+    <span class="cc-match ${match.cls}">${match.label}</span>
+    <span>Phát hiện ${fmtTime(c.firstDetectedAt)}</span>
+    <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
+  `;
+}
+
+function clusterActionsHtml(c) {
+  return `
+    <span class="cell-actions">
+      ${checkbox(c.sourceChecked, c.sourceAddress)}
+      <button class="star-btn ${c.starred ? "starred" : ""}" title="Đánh dấu cả cụm cần để ý" onclick="event.stopPropagation(); toggleClusterStarred('${c.sourceAddress}', ${!c.starred})">${STAR_ICON}</button>
+    </span>
+    <span class="cc-badge">${c.walletCount} ví con</span>
+  `;
+}
+
+/**
+ * Every refresh used to rebuild the whole cluster grid from scratch
+ * whenever any cluster's summary data changed — which destroyed every
+ * currently-open card's member-list subtree along with it, forcing it back
+ * to empty and triggering populateClusterBody()'s loading flash. That
+ * collapse-then-reload was what visibly yanked the page around every 5s.
+ *
+ * Instead, reconcile in place: existing cards are patched (header text
+ * only) and repositioned if their sort order moved, but `.cc-members` is
+ * never touched here — moving a DOM node is not destroying it, so an open
+ * card's member list (and any fetch already in flight for it) survives a
+ * reorder or data refresh completely undisturbed. Only genuinely new
+ * clusters get a freshly created card (which is also the only time the
+ * fade-in animation plays, since patched cards are the same DOM node).
+ */
 async function loadClusters() {
   const clusters = await fetchJson("/api/clusters");
   document.getElementById("clusters-count").textContent = clusters.length;
   const grid = document.getElementById("clusters-grid");
 
-  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}:${c.starred}:${c.matchType}:${c.sourceChecked}`).join("|");
-  const structureChanged = signature !== lastClustersSignature || grid.children.length === 0;
-
-  if (structureChanged) {
-    lastClustersSignature = signature;
-
-    if (clusters.length === 0) {
+  if (clusters.length === 0) {
+    if (!grid.querySelector(".empty")) {
       grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Chưa phát hiện cụm ví nào</div>`;
+    }
+    return;
+  }
+  if (grid.querySelector(".empty")) grid.innerHTML = "";
+
+  let prevCard = null;
+  for (const c of clusters) {
+    let card = document.getElementById(clusterCardId(c.sourceAddress));
+
+    if (!card) {
+      const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = clusterCardHtml(c, isOpen).trim();
+      card = wrapper.firstElementChild;
     } else {
-      grid.innerHTML = clusters.map((c) => {
-        const bodyId = clusterBodyId(c.sourceAddress);
-        const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
-        const match = matchTypeInfo(c.matchType);
-        return `
-          <div class="cluster-card ${c.starred ? "is-starred" : ""}" id="cluster-card-${c.sourceAddress.toLowerCase()}">
-            <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
-              <div>
-                ${addrLink(c.sourceAddress)}
-                <div class="cc-meta">
-                  <span class="cc-match ${match.cls}">${match.label}</span>
-                  <span>Phát hiện ${fmtTime(c.firstDetectedAt)}</span>
-                  <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
-                </div>
-              </div>
-              <div class="cc-actions">
-                <span class="cell-actions">
-                  ${checkbox(c.sourceChecked, c.sourceAddress)}
-                  <button class="star-btn ${c.starred ? "starred" : ""}" title="Đánh dấu cả cụm cần để ý" onclick="event.stopPropagation(); toggleClusterStarred('${c.sourceAddress}', ${!c.starred})">${STAR_ICON}</button>
-                </span>
-                <span class="cc-badge">${c.walletCount} ví con</span>
-              </div>
-            </div>
-            <div class="cc-members" id="${bodyId}" style="display:${isOpen ? "block" : "none"}"></div>
-          </div>
-        `;
-      }).join("");
+      card.classList.toggle("is-starred", c.starred);
+      card.querySelector(".cc-meta").innerHTML = clusterMetaHtml(c);
+      card.querySelector(".cc-actions").innerHTML = clusterActionsHtml(c);
+    }
+
+    const expectedNext = prevCard ? prevCard.nextElementSibling : grid.firstElementChild;
+    if (expectedNext !== card) grid.insertBefore(card, expectedNext);
+    prevCard = card;
+  }
+
+  const currentIds = new Set(clusters.map((c) => clusterCardId(c.sourceAddress)));
+  for (const card of [...grid.children]) {
+    if (!currentIds.has(card.id)) {
+      const source = card.id.replace(/^cluster-card-/, "");
+      expandedClusters.delete(source);
+      clusterBodySignatures.delete(clusterBodyId(source));
+      card.remove();
     }
   }
 
-  // Always keep already-open cards' member lists fresh (checked/starred
-  // state, USD amounts) — this only replaces the inner member-list HTML,
-  // never touches the card's open/closed state, so it can't cause flicker.
   for (const c of clusters) {
     if (expandedClusters.has(c.sourceAddress.toLowerCase())) {
       void populateClusterBody(c.sourceAddress, clusterBodyId(c.sourceAddress));
@@ -972,12 +1043,20 @@ async function loadTrash() {
 }
 
 async function refresh() {
+  // Safety net on top of the per-section reconciliation above: if a
+  // refresh still shifts total page height for any reason, this restores
+  // exactly where you were instead of letting the browser leave you
+  // wherever the new layout happens to put that pixel offset.
+  const scrollY = window.scrollY;
   try {
     await Promise.all([loadStats(), loadStarred(), loadTrash(), loadClusters(), loadWatchlist(), loadDeployments()]);
     document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
   } catch (err) {
     document.getElementById("meta").textContent = "lỗi tải dữ liệu — bot/API có đang chạy không?";
     console.error(err);
+  }
+  if (window.scrollY !== scrollY) {
+    window.scrollTo({ top: scrollY, behavior: "instant" });
   }
 }
 
