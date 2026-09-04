@@ -71,8 +71,16 @@ export async function findClusterForWallet(address: Address) {
 
 export async function listClusters() {
   return prisma.fundingCluster.findMany({
-    orderBy: { lastUpdatedAt: "desc" },
+    orderBy: [{ starred: "desc" }, { lastUpdatedAt: "desc" }],
     take: 100,
+  });
+}
+
+/** Flips a cluster's "I need to watch this whole group" flag. */
+export async function setClusterStarred(sourceAddress: string, starred: boolean) {
+  return prisma.fundingCluster.update({
+    where: { sourceAddress: sourceAddress.toLowerCase() },
+    data: { starred, starredAt: starred ? new Date() : null },
   });
 }
 

@@ -134,6 +134,11 @@
     box-shadow: var(--shadow);
     overflow: hidden;
   }
+  .cluster-card.is-starred {
+    border-color: var(--yellow);
+    box-shadow: 0 0 0 1px var(--yellow), var(--shadow);
+  }
+  .cc-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 7px; flex-shrink: 0; }
   .cluster-card .cc-head {
     padding: 14px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
     cursor: pointer;
@@ -436,6 +441,17 @@ async function toggleStarred(address, starred) {
   refresh();
 }
 
+/** Stars/unstars a whole cluster (not just one member wallet) — starred
+ * clusters get a gold border and sort to the top of the list. */
+async function toggleClusterStarred(source, starred) {
+  await fetchJson(`/api/clusters/${source}/starred`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ starred }),
+  });
+  refresh();
+}
+
 /** Like toggleStarred, but updates the clicked button in place instead of
  * triggering a full refresh — used on the investigate-results table, which
  * isn't backed by a re-fetchable list. */
@@ -563,7 +579,7 @@ async function loadClusters() {
   document.getElementById("clusters-count").textContent = clusters.length;
   const grid = document.getElementById("clusters-grid");
 
-  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}`).join("|");
+  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}:${c.starred}`).join("|");
   const structureChanged = signature !== lastClustersSignature || grid.children.length === 0;
 
   if (structureChanged) {
@@ -576,7 +592,7 @@ async function loadClusters() {
         const bodyId = clusterBodyId(c.sourceAddress);
         const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
         return `
-          <div class="cluster-card" id="cluster-card-${c.sourceAddress.toLowerCase()}">
+          <div class="cluster-card ${c.starred ? "is-starred" : ""}" id="cluster-card-${c.sourceAddress.toLowerCase()}">
             <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
               <div>
                 ${addrLink(c.sourceAddress)}
@@ -585,7 +601,10 @@ async function loadClusters() {
                   <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
                 </div>
               </div>
-              <span class="cc-badge">${c.walletCount} ví con</span>
+              <div class="cc-actions">
+                <button class="star-btn ${c.starred ? "starred" : ""}" title="Đánh dấu cả cụm cần để ý" onclick="event.stopPropagation(); toggleClusterStarred('${c.sourceAddress}', ${!c.starred})">${STAR_ICON}</button>
+                <span class="cc-badge">${c.walletCount} ví con</span>
+              </div>
             </div>
             <div class="cc-members" id="${bodyId}" style="display:${isOpen ? "block" : "none"}"></div>
           </div>

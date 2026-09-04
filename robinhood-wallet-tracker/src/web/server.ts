@@ -6,7 +6,12 @@ import { prisma } from "../db/prisma.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { removeFromWatchlist } from "../watchlist/watchlistManager.js";
-import { listClusters, listClusterMembers, findClusterForWallet } from "../db/fundingRepository.js";
+import {
+  listClusters,
+  listClusterMembers,
+  findClusterForWallet,
+  setClusterStarred,
+} from "../db/fundingRepository.js";
 import { setWalletChecked, setWalletStarred, listStarredWallets } from "../db/repositories.js";
 import { investigateToken } from "../investigation/tokenInvestigator.js";
 
@@ -93,6 +98,17 @@ export function startWebServer() {
     } catch (err) {
       logger.error({ err, source: req.params.source }, "failed to list cluster members");
       res.status(500).json({ error: "failed to list cluster members" });
+    }
+  });
+
+  app.put("/api/clusters/:source/starred", async (req, res) => {
+    const starred = req.body?.starred === true;
+    try {
+      const cluster = await setClusterStarred(req.params.source, starred);
+      res.json(toJson(cluster));
+    } catch (err) {
+      logger.error({ err, source: req.params.source }, "failed to star cluster");
+      res.status(500).json({ error: "failed to star cluster" });
     }
   });
 

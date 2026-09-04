@@ -222,7 +222,10 @@ the small lookup box above the cluster list — it finds and auto-opens the
 matching cluster card for you. Each member row also shows how much was
 sent to fund it, converted to USD (`src/chain/priceService.ts`, ETH/USD
 from CoinGecko, cached 5 min) — shows `$?` if the price fetch fails, never
-a wrong number.
+a wrong number. Click the ⭐ on a card's header to star the *whole cluster*
+(separate from starring individual member wallets below it) — starred
+clusters get a gold border and always sort to the top of the list, so an
+important cluster stays easy to find regardless of how recently it updated.
 
 From then on, **any purchase by a wallet belonging to that cluster on a
 freshly-launched token** fires an immediate, separate Telegram alert

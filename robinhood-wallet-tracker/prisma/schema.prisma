@@ -133,11 +133,16 @@ model FundingTransfer {
 /// by sourceAddress is treated as a cluster member for buyer-matching,
 /// not just the ones inside the window that first tripped the threshold.
 model FundingCluster {
-  id              String   @id @default(cuid())
-  sourceAddress   String   @unique
-  firstDetectedAt DateTime @default(now())
-  lastUpdatedAt   DateTime @updatedAt
+  id              String    @id @default(cuid())
+  sourceAddress   String    @unique
+  firstDetectedAt DateTime  @default(now())
+  lastUpdatedAt   DateTime  @updatedAt
   walletCount     Int
+  /// "This whole cluster needs watching" — separate from starring individual
+  /// member wallets; starred clusters sort to the top of the cluster list.
+  starred         Boolean   @default(false)
+  starredAt       DateTime?
 
   @@index([sourceAddress])
+  @@index([starred])
 }
