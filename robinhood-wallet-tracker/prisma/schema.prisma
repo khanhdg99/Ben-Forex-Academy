@@ -18,6 +18,8 @@ model Wallet {
   priorDeployments Int      @default(0)
   priorRugs        Int      @default(0)
   notes            String?
+  checked          Boolean   @default(false)
+  checkedAt        DateTime?
 
   deployments   TokenDeployment[]
   scoreLogs     RiskScoreLog[]

@@ -82,5 +82,18 @@ export async function listClusterMembers(sourceAddress: string) {
     distinct: ["toAddress"],
     take: 200,
   });
-  return rows.map((r) => ({ address: r.toAddress, fundedAt: r.occurredAt, txHash: r.txHash }));
+
+  const wallets = await prisma.wallet.findMany({
+    where: { address: { in: rows.map((r) => r.toAddress) } },
+    select: { address: true, checked: true, latestRiskScore: true },
+  });
+  const walletByAddress = new Map(wallets.map((w) => [w.address, w]));
+
+  return rows.map((r) => ({
+    address: r.toAddress,
+    fundedAt: r.occurredAt,
+    txHash: r.txHash,
+    checked: walletByAddress.get(r.toAddress)?.checked ?? false,
+    latestRiskScore: walletByAddress.get(r.toAddress)?.latestRiskScore ?? 0,
+  }));
 }

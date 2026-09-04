@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { removeFromWatchlist } from "../watchlist/watchlistManager.js";
 import { listClusters, listClusterMembers } from "../db/fundingRepository.js";
+import { setWalletChecked } from "../db/repositories.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -78,6 +79,12 @@ export function startWebServer() {
   app.get("/api/clusters/:source/members", async (req, res) => {
     const members = await listClusterMembers(req.params.source);
     res.json(toJson(members));
+  });
+
+  app.put("/api/wallets/:address/checked", async (req, res) => {
+    const checked = req.body?.checked === true;
+    const wallet = await setWalletChecked(req.params.address as `0x${string}`, checked);
+    res.json(toJson(wallet));
   });
 
   app.get("/api/wallets/:address", async (req, res) => {

@@ -17,6 +17,15 @@ export async function upsertWallet(
   });
 }
 
+/** Flips a wallet's "reviewed by me" flag — used by the dashboard's check-off feature. */
+export async function setWalletChecked(address: Address, checked: boolean) {
+  return prisma.wallet.upsert({
+    where: { address: address.toLowerCase() },
+    create: { address: address.toLowerCase(), checked, checkedAt: checked ? new Date() : null },
+    update: { checked, checkedAt: checked ? new Date() : null },
+  });
+}
+
 export async function recordTokenDeployment(params: {
   tokenAddress: Address;
   deployerAddress: Address;

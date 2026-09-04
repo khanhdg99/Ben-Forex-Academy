@@ -255,6 +255,10 @@ export async function handleFundingTransfer(data: FundingTransferJobData) {
 
   if (!fresh) return;
 
+  // So this sub-wallet shows up as a checkable entity on the dashboard even
+  // before its funder crosses the cluster threshold.
+  await upsertWallet(to);
+
   const members = await countRecentFreshFundedWallets(from);
   if (members.length < env.FANOUT_MIN_WALLETS) return;
 

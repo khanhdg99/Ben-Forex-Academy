@@ -7,150 +7,331 @@
 <style>
   :root {
     color-scheme: dark;
-    --bg: #0b0e14;
-    --panel: #131722;
-    --panel-2: #1b2030;
-    --border: #262c3d;
-    --text: #e6e9f0;
-    --muted: #8b93a7;
+    --bg: #090b12;
+    --bg-glow: radial-gradient(1200px 500px at 15% -10%, rgba(109,140,255,0.16), transparent 60%),
+                radial-gradient(900px 400px at 100% 0%, rgba(62,207,142,0.10), transparent 55%);
+    --panel: #12151f;
+    --panel-2: #191d2b;
+    --panel-3: #1f2436;
+    --border: #262c40;
+    --border-soft: #1c2032;
+    --text: #eef0f6;
+    --muted: #8991ab;
+    --muted-2: #5e6683;
     --green: #3ecf8e;
+    --green-dim: #1a3327;
     --yellow: #e0b94f;
-    --orange: #e88a3a;
-    --red: #ef5555;
-    --accent: #6d8cff;
+    --yellow-dim: #362c14;
+    --orange: #e8923a;
+    --orange-dim: #33230f;
+    --red: #f0596a;
+    --red-dim: #34161c;
+    --accent: #7c9cff;
+    --accent-2: #a78bfa;
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -8px rgba(0,0,0,0.5);
   }
   * { box-sizing: border-box; }
+  ::selection { background: rgba(124,156,255,0.35); }
   body {
     margin: 0;
-    background: var(--bg);
+    min-height: 100vh;
+    background: var(--bg-glow), var(--bg);
+    background-attachment: fixed;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif;
     font-size: 14px;
+    -webkit-font-smoothing: antialiased;
   }
+
   header {
-    padding: 20px 28px;
-    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(9,11,18,0.72);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .header-inner {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 16px 28px;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
+    gap: 16px;
     flex-wrap: wrap;
-    gap: 8px;
   }
-  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
-  header .sub { color: var(--muted); font-size: 12px; }
-  main { padding: 24px 28px; max-width: 1200px; margin: 0 auto; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-icon {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 14px -4px rgba(124,156,255,0.6);
+    flex-shrink: 0;
+  }
+  .brand-icon svg { width: 17px; height: 17px; }
+  .brand-text h1 { font-size: 15px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  .brand-text .tag { color: var(--muted-2); font-size: 11px; margin-top: 1px; }
 
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .header-right { display: flex; align-items: center; gap: 18px; }
+  .live-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px var(--green-dim); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.45 } }
+
+  .switch { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; user-select: none; }
+  .switch input { display: none; }
+  .switch .track { width: 30px; height: 17px; border-radius: 99px; background: var(--panel-3); border: 1px solid var(--border); position: relative; transition: .15s; }
+  .switch .track::after { content: ""; position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); top: 2px; left: 2px; transition: .15s; }
+  .switch input:checked + .track { background: rgba(124,156,255,0.25); border-color: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(13px); background: var(--accent); }
+
+  nav.subnav { display: flex; gap: 4px; max-width: 1240px; margin: 0 auto; padding: 0 28px 12px; }
+  nav.subnav a {
+    color: var(--muted); text-decoration: none; font-size: 12.5px; font-weight: 550;
+    padding: 6px 12px; border-radius: 999px; transition: .15s;
+  }
+  nav.subnav a:hover { color: var(--text); background: var(--panel-2); }
+
+  main { max-width: 1240px; margin: 0 auto; padding: 28px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 36px; }
   .stat {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    box-shadow: var(--shadow);
+    display: flex; align-items: center; gap: 13px;
   }
-  .stat .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .stat-icon {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stat-icon svg { width: 18px; height: 18px; }
+  .stat .label { color: var(--muted-2); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 650; }
+  .stat .value { font-size: 22px; font-weight: 700; margin-top: 2px; letter-spacing: -0.02em; }
 
-  section { margin-bottom: 32px; }
-  section h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
-  section h2 .count { color: var(--muted); font-weight: 400; font-size: 12px; }
+  section { margin-bottom: 40px; scroll-margin-top: 90px; }
+  .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+  .section-title { display: flex; align-items: center; gap: 9px; }
+  .section-title .icon-wrap {
+    width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    background: var(--panel-3); border: 1px solid var(--border);
+  }
+  .section-title .icon-wrap svg { width: 13px; height: 13px; }
+  .section-title h2 { font-size: 14.5px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
+  .section-title .desc { color: var(--muted-2); font-size: 11.5px; margin-top: 1px; }
+  .count-pill { color: var(--muted); font-weight: 600; font-size: 11px; background: var(--panel-3); border: 1px solid var(--border); padding: 2px 9px; border-radius: 999px; }
 
-  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  /* cards */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .cluster-card {
+    background: linear-gradient(165deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .cluster-card .cc-head {
+    padding: 14px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    cursor: pointer;
+  }
+  .cluster-card .cc-head:hover { background: rgba(255,255,255,0.02); }
+  .cc-badge { background: var(--accent); color: #0b0e17; font-weight: 750; font-size: 11.5px; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  .cc-meta { color: var(--muted-2); font-size: 11px; margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .cc-members { border-top: 1px solid var(--border-soft); padding: 4px 8px; max-height: 260px; overflow-y: auto; }
+  .cc-member-row {
+    display: flex; align-items: center; gap: 9px; padding: 8px 8px; border-radius: 8px;
+  }
+  .cc-member-row:hover { background: var(--panel-3); }
+  .cc-member-row.is-checked { opacity: 0.42; }
+  .cc-member-row.is-checked .addr { text-decoration: line-through; }
+
+  /* tables */
+  .table-wrap { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--border-soft); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border-soft); }
+  th { color: var(--muted-2); font-weight: 650; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; background: rgba(255,255,255,0.015); }
   tr:last-child td { border-bottom: none; }
-  tr.deployment-row { cursor: pointer; }
-  tr.deployment-row:hover { background: var(--panel-2); }
+  tr.deployment-row { cursor: pointer; transition: background .1s; }
+  tr.deployment-row:hover { background: var(--panel-3); }
+  tr.is-checked td { opacity: 0.4; }
+  tr.is-checked .addr { text-decoration: line-through; }
 
-  a.addr { color: var(--accent); text-decoration: none; font-family: ui-monospace, monospace; }
+  a.addr { color: var(--accent); text-decoration: none; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; }
   a.addr:hover { text-decoration: underline; }
 
-  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
-  .pill.s-low { background: #1c3a2c; color: var(--green); }
-  .pill.s-mid { background: #3a3320; color: var(--yellow); }
-  .pill.s-high { background: #3d2818; color: var(--orange); }
-  .pill.s-crit { background: #3d1a1a; color: var(--red); }
+  /* score ring */
+  .ring { position: relative; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ring::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(var(--ring-color) calc(var(--pct) * 1%), var(--panel-3) 0); }
+  .ring::after { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: var(--panel); }
+  .ring span { position: relative; font-size: 11px; font-weight: 750; z-index: 1; }
+  .score-cell { display: flex; align-items: center; gap: 10px; }
 
-  .badge { display: inline-block; padding: 1px 7px; border-radius: 5px; font-size: 11px; margin-right: 4px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
-  .badge.on { color: var(--text); border-color: var(--accent); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 10.5px; font-weight: 600; margin-right: 4px; background: var(--panel-3); color: var(--muted-2); border: 1px solid var(--border); }
+  .badge.on { color: var(--text); border-color: var(--accent); background: rgba(124,156,255,0.1); }
+  .badge.on.rug { color: var(--red); border-color: var(--red); background: var(--red-dim); }
 
-  .empty { color: var(--muted); padding: 24px; text-align: center; }
+  .empty { color: var(--muted-2); padding: 32px 20px; text-align: center; font-size: 13px; }
 
-  .breakdown-row td { background: #0e1220; }
-  .breakdown { padding: 10px 20px 16px; font-size: 13px; }
-  .breakdown-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--border); color: var(--muted); }
+  .breakdown-row td { background: #0c0e17; padding: 0; }
+  .breakdown { padding: 12px 20px 18px; font-size: 12.5px; }
+  .breakdown-item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed var(--border-soft); color: var(--muted); }
   .breakdown-item:last-child { border-bottom: none; }
   .breakdown-item b { color: var(--text); }
-  .breakdown-item .pts { color: var(--accent); font-weight: 700; min-width: 40px; text-align: right; }
+  .breakdown-item .pts { color: var(--accent); font-weight: 700; min-width: 42px; text-align: right; }
+
+  .checkbox {
+    width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid var(--border);
+    background: var(--panel-3); cursor: pointer; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; transition: .1s;
+  }
+  .checkbox:hover { border-color: var(--accent); }
+  .checkbox.checked { background: var(--accent); border-color: var(--accent); }
+  .checkbox svg { width: 10px; height: 10px; opacity: 0; }
+  .checkbox.checked svg { opacity: 1; }
 
   button.rm {
     background: transparent; border: 1px solid var(--border); color: var(--muted);
-    border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px;
+    border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 11.5px; font-weight: 550; transition: .1s;
   }
-  button.rm:hover { border-color: var(--red); color: var(--red); }
+  button.rm:hover { border-color: var(--red); color: var(--red); background: var(--red-dim); }
 
-  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+  footer { text-align: center; color: var(--muted-2); font-size: 11.5px; padding: 30px 20px 40px; }
+  code.inline { background: var(--panel-3); border: 1px solid var(--border); padding: 1px 6px; border-radius: 5px; font-family: ui-monospace, monospace; font-size: 11px; }
+
+  @media (max-width: 640px) {
+    .header-inner { padding: 14px 16px; }
+    main { padding: 18px 16px; }
+    nav.subnav { padding: 0 16px 10px; overflow-x: auto; }
+  }
 </style>
 </head>
 <body>
   <header>
-    <h1>🔎 Robinhood Chain Wallet Tracker</h1>
-    <div class="sub" id="meta">đang tải...</div>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7v6c0 5 4 9 9 9s9-4 9-9V7l-9-5z" fill="#0b0e17"/><path d="M9 12l2 2 4-4" stroke="#0b0e17" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="brand-text">
+          <h1>Robinhood Chain Wallet Tracker</h1>
+          <div class="tag" id="meta">đang tải...</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <label class="switch">
+          <input type="checkbox" id="hide-checked-toggle" onchange="onHideCheckedToggle(this.checked)" />
+          <span class="track"></span>
+          Ẩn ví đã check
+        </label>
+        <div class="live-status"><span class="dot"></span> Đang theo dõi</div>
+      </div>
+    </div>
+    <nav class="subnav">
+      <a href="#clusters">Cụm ví</a>
+      <a href="#watchlist">Watchlist</a>
+      <a href="#deployments">Deployments</a>
+    </nav>
   </header>
 
   <main>
     <div class="stats" id="stats"></div>
 
-    <section>
-      <h2>Cụm ví nghi vấn (fan-out) <span class="count" id="clusters-count"></span></h2>
-      <table id="clusters-table">
-        <thead><tr><th>Ví nguồn (bơm tiền)</th><th>Số ví con mới</th><th>Phát hiện lúc</th><th>Cập nhật lúc</th></tr></thead>
-        <tbody></tbody>
-      </table>
+    <section id="clusters">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M7.7 7.3L11 16M16.3 7.3L13 16"/></svg></div>
+          <div>
+            <h2>Cụm ví nghi vấn (fan-out)</h2>
+            <div class="desc">1 ví bơm tiền cho nhiều ví mới — tín hiệu copy trade</div>
+          </div>
+        </div>
+        <span class="count-pill" id="clusters-count">0</span>
+      </div>
+      <div class="card-grid" id="clusters-grid"></div>
     </section>
 
-    <section>
-      <h2>Watchlist <span class="count" id="watchlist-count"></span></h2>
-      <table id="watchlist-table">
-        <thead><tr><th>Wallet</th><th>Score</th><th>Lý do</th><th>Thêm lúc</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+    <section id="watchlist">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <div>
+            <h2>Watchlist</h2>
+            <div class="desc">Ví vượt ngưỡng điểm rủi ro</div>
+          </div>
+        </div>
+        <span class="count-pill" id="watchlist-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table id="watchlist-table">
+          <thead><tr><th style="width:36px"></th><th>Wallet</th><th>Score</th><th>Lý do</th><th>Thêm lúc</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
-    <section>
-      <h2>Deployment gần đây <span class="count" id="deployments-count"></span></h2>
-      <table id="deployments-table">
-        <thead>
-          <tr>
-            <th>Token</th><th>Deployer</th><th>Score</th><th>ERC-20</th>
-            <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Deploy lúc</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <section id="deployments">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+          <div>
+            <h2>Deployment gần đây</h2>
+            <div class="desc">Token vừa deploy — pool, initial buy, rug</div>
+          </div>
+        </div>
+        <span class="count-pill" id="deployments-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table id="deployments-table">
+          <thead>
+            <tr>
+              <th style="width:36px"></th><th>Token</th><th>Deployer</th><th>Score</th><th>ERC-20</th>
+              <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Deploy lúc</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
-  <footer>Tự động làm mới mỗi 5 giây · Ngưỡng cảnh báo hiện tại: <span id="threshold">–</span></footer>
+  <footer>Tự động làm mới mỗi 5 giây · Ngưỡng cảnh báo hiện tại: <code class="inline" id="threshold">–</code></footer>
 
 <script>
+const CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="#0b0e17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>`;
 const explorer = (addr) => `https://robinhoodchain.blockscout.com/address/${addr}`;
 const short = (addr) => addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "–";
 const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("vi-VN") : "–";
 
-function scoreClass(score) {
-  if (score >= 80) return "s-crit";
-  if (score >= 60) return "s-high";
-  if (score >= 35) return "s-mid";
-  return "s-low";
+let hideChecked = false;
+try { hideChecked = localStorage.getItem("hideChecked") === "1"; } catch (e) {}
+
+function onHideCheckedToggle(checked) {
+  hideChecked = checked;
+  try { localStorage.setItem("hideChecked", checked ? "1" : "0"); } catch (e) {}
+  refresh();
 }
-function scorePill(score) {
-  return `<span class="pill ${scoreClass(score)}">${score}</span>`;
+
+function ringColor(score) {
+  if (score >= 80) return "var(--red)";
+  if (score >= 60) return "var(--orange)";
+  if (score >= 35) return "var(--yellow)";
+  return "var(--green)";
+}
+function scoreRing(score) {
+  return `<div class="ring" style="--pct:${Math.min(score,100)};--ring-color:${ringColor(score)}"><span>${score}</span></div>`;
 }
 function addrLink(addr) {
   return `<a class="addr" href="${explorer(addr)}" target="_blank" rel="noopener">${short(addr)}</a>`;
 }
-function badge(label, on) {
-  return `<span class="badge ${on ? "on" : ""}">${label}</span>`;
+function badge(label, on, isRug) {
+  return `<span class="badge ${on ? "on" : ""} ${on && isRug ? "rug" : ""}">${label}</span>`;
+}
+function checkbox(checked, addr) {
+  return `<span class="checkbox ${checked ? "checked" : ""}" onclick="event.stopPropagation(); toggleChecked('${addr}', ${!checked})">${CHECK_ICON}</span>`;
 }
 
 async function fetchJson(url, opts) {
@@ -159,87 +340,113 @@ async function fetchJson(url, opts) {
   return res.json();
 }
 
+async function toggleChecked(address, checked) {
+  await fetchJson(`/api/wallets/${address}/checked`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ checked }),
+  });
+  refresh();
+}
+
+function statIcon(bg, fg, path) {
+  return `<div class="stat-icon" style="background:${bg}"><svg viewBox="0 0 24 24" fill="none" stroke="${fg}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${path}</svg></div>`;
+}
+
 async function loadStats() {
   const s = await fetchJson("/api/stats");
   document.getElementById("stats").innerHTML = `
-    <div class="stat"><div class="label">Token đã theo dõi</div><div class="value">${s.totalDeployments}</div></div>
-    <div class="stat"><div class="label">Ví đã ghi nhận</div><div class="value">${s.totalWallets}</div></div>
-    <div class="stat"><div class="label">Đang trong watchlist</div><div class="value">${s.watchlisted}</div></div>
-    <div class="stat"><div class="label">Cảnh báo (24h)</div><div class="value">${s.alertableToday}</div></div>
-    <div class="stat"><div class="label">Cụm ví fan-out</div><div class="value">${s.totalClusters}</div></div>
+    <div class="stat">${statIcon("rgba(124,156,255,0.14)","#7c9cff","<rect x=\'3\' y=\'3\' width=\'7\' height=\'7\' rx=\'1.5\'/><rect x=\'14\' y=\'3\' width=\'7\' height=\'7\' rx=\'1.5\'/><rect x=\'3\' y=\'14\' width=\'7\' height=\'7\' rx=\'1.5\'/><rect x=\'14\' y=\'14\' width=\'7\' height=\'7\' rx=\'1.5\'/>")}
+      <div><div class="label">Token đã theo dõi</div><div class="value">${s.totalDeployments}</div></div></div>
+    <div class="stat">${statIcon("rgba(62,207,142,0.14)","#3ecf8e","<path d=\'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z\'/><circle cx=\'12\' cy=\'12\' r=\'3\'/>")}
+      <div><div class="label">Ví đã ghi nhận</div><div class="value">${s.totalWallets}</div></div></div>
+    <div class="stat">${statIcon("rgba(224,185,79,0.14)","#e0b94f","<path d=\'M12 9v4M12 17h.01\'/><path d=\'M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z\'/>")}
+      <div><div class="label">Đang trong watchlist</div><div class="value">${s.watchlisted}</div></div></div>
+    <div class="stat">${statIcon("rgba(240,89,106,0.14)","#f0596a","<path d=\'M13.7 3l7.6 13.3a1.8 1.8 0 01-1.6 2.7H4.3a1.8 1.8 0 01-1.6-2.7L10.3 3a1.8 1.8 0 013.4 0z\'/><path d=\'M12 9v4M12 16h.01\'/>")}
+      <div><div class="label">Cảnh báo (24h)</div><div class="value">${s.alertableToday}</div></div></div>
+    <div class="stat">${statIcon("rgba(167,139,250,0.14)","#a78bfa","<circle cx=\'6\' cy=\'6\' r=\'2\'/><circle cx=\'18\' cy=\'6\' r=\'2\'/><circle cx=\'12\' cy=\'18\' r=\'2\'/><path d=\'M7.7 7.3L11 16M16.3 7.3L13 16\'/>")}
+      <div><div class="label">Cụm ví fan-out</div><div class="value">${s.totalClusters}</div></div></div>
   `;
   document.getElementById("threshold").textContent = s.threshold;
 }
 
-async function removeWatch(address) {
-  await fetch(`/api/watchlist/${address}`, { method: "DELETE" });
-  loadWatchlist();
-}
-
-async function loadWatchlist() {
-  const entries = await fetchJson("/api/watchlist");
-  document.getElementById("watchlist-count").textContent = `(${entries.length})`;
-  const tbody = document.querySelector("#watchlist-table tbody");
-  if (entries.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty">Chưa có ví nào trong watchlist</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = entries.map((e) => `
-    <tr>
-      <td>${addrLink(e.walletAddress)}</td>
-      <td>${scorePill(e.wallet.latestRiskScore)}</td>
-      <td>${e.reason}</td>
-      <td>${fmtTime(e.addedAt)}</td>
-      <td><button class="rm" onclick="removeWatch('${e.walletAddress}')">Bỏ theo dõi</button></td>
-    </tr>
-  `).join("");
-}
-
-async function toggleClusterMembers(source, rowId) {
-  const row = document.getElementById(rowId);
-  if (row.style.display === "table-row") {
-    row.style.display = "none";
-    return;
-  }
-  row.style.display = "table-row";
-  const cell = row.querySelector("td");
-  cell.innerHTML = `<div class="breakdown"><span class="empty">đang tải...</span></div>`;
+async function toggleClusterCard(source, bodyId, chevronId) {
+  const body = document.getElementById(bodyId);
+  const isOpen = body.style.display === "block";
+  body.style.display = isOpen ? "none" : "block";
+  if (isOpen) return;
+  body.innerHTML = `<div class="cc-member-row"><span class="empty" style="padding:14px">đang tải...</span></div>`;
   try {
     const members = await fetchJson(`/api/clusters/${source}/members`);
-    if (members.length === 0) {
-      cell.innerHTML = `<div class="breakdown"><span class="empty">Không có ví con</span></div>`;
+    const visible = hideChecked ? members.filter((m) => !m.checked) : members;
+    if (visible.length === 0) {
+      body.innerHTML = `<div class="empty">Không có ví con${hideChecked ? " (còn lại sau khi ẩn ví đã check)" : ""}</div>`;
       return;
     }
-    cell.innerHTML = `<div class="breakdown">${members.map((m) => `
-      <div class="breakdown-item"><span>${addrLink(m.address)}</span><span class="pts" style="font-weight:400;color:var(--muted)">${fmtTime(m.fundedAt)}</span></div>
-    `).join("")}</div>`;
+    body.innerHTML = visible.map((m) => `
+      <div class="cc-member-row ${m.checked ? "is-checked" : ""}">
+        ${checkbox(m.checked, m.address)}
+        ${addrLink(m.address)}
+        <span style="margin-left:auto;color:var(--muted-2);font-size:11px">${fmtTime(m.fundedAt)}</span>
+      </div>
+    `).join("");
   } catch (err) {
-    cell.innerHTML = `<div class="breakdown"><span class="empty">Lỗi tải danh sách ví con</span></div>`;
+    body.innerHTML = `<div class="empty">Lỗi tải danh sách ví con</div>`;
   }
 }
 
 async function loadClusters() {
   const clusters = await fetchJson("/api/clusters");
-  document.getElementById("clusters-count").textContent = `(${clusters.length})`;
-  const tbody = document.querySelector("#clusters-table tbody");
+  document.getElementById("clusters-count").textContent = clusters.length;
+  const grid = document.getElementById("clusters-grid");
   if (clusters.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="empty">Chưa phát hiện cụm ví nào</td></tr>`;
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Chưa phát hiện cụm ví nào</div>`;
     return;
   }
-  tbody.innerHTML = clusters.map((c, i) => {
-    const rowId = `cl-${i}`;
+  grid.innerHTML = clusters.map((c, i) => {
+    const bodyId = `cc-body-${i}`;
     return `
-      <tr class="deployment-row" onclick="toggleClusterMembers('${c.sourceAddress}', '${rowId}')">
-        <td>${addrLink(c.sourceAddress)}</td>
-        <td>${c.walletCount}</td>
-        <td>${fmtTime(c.firstDetectedAt)}</td>
-        <td>${fmtTime(c.lastUpdatedAt)}</td>
-      </tr>
-      <tr class="breakdown-row" id="${rowId}" style="display:none">
-        <td colspan="4"></td>
-      </tr>
+      <div class="cluster-card">
+        <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
+          <div>
+            ${addrLink(c.sourceAddress)}
+            <div class="cc-meta">
+              <span>Phát hiện ${fmtTime(c.firstDetectedAt)}</span>
+              <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
+            </div>
+          </div>
+          <span class="cc-badge">${c.walletCount} ví con</span>
+        </div>
+        <div class="cc-members" id="${bodyId}" style="display:none"></div>
+      </div>
     `;
   }).join("");
+}
+
+async function removeWatch(address) {
+  await fetch(`/api/watchlist/${address}`, { method: "DELETE" });
+  refresh();
+}
+
+async function loadWatchlist() {
+  let entries = await fetchJson("/api/watchlist");
+  if (hideChecked) entries = entries.filter((e) => !e.wallet.checked);
+  document.getElementById("watchlist-count").textContent = entries.length;
+  const tbody = document.querySelector("#watchlist-table tbody");
+  if (entries.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Chưa có ví nào trong watchlist</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map((e) => `
+    <tr class="${e.wallet.checked ? "is-checked" : ""}">
+      <td>${checkbox(e.wallet.checked, e.walletAddress)}</td>
+      <td>${addrLink(e.walletAddress)}</td>
+      <td>${scoreRing(e.wallet.latestRiskScore)}</td>
+      <td>${e.reason}</td>
+      <td>${fmtTime(e.addedAt)}</td>
+      <td><button class="rm" onclick="removeWatch('${e.walletAddress}')">Bỏ theo dõi</button></td>
+    </tr>
+  `).join("");
 }
 
 function breakdownHtml(log) {
@@ -251,11 +458,12 @@ function breakdownHtml(log) {
 }
 
 async function loadDeployments() {
-  const deployments = await fetchJson("/api/deployments?limit=100");
-  document.getElementById("deployments-count").textContent = `(${deployments.length})`;
+  let deployments = await fetchJson("/api/deployments?limit=100");
+  if (hideChecked) deployments = deployments.filter((d) => !d.deployer.checked);
+  document.getElementById("deployments-count").textContent = deployments.length;
   const tbody = document.querySelector("#deployments-table tbody");
   if (deployments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">Chưa phát hiện deployment nào</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">Chưa phát hiện deployment nào</td></tr>`;
     return;
   }
   tbody.innerHTML = deployments.map((d, i) => {
@@ -267,18 +475,19 @@ async function loadDeployments() {
     const score = log ? log.score : 0;
     const rowId = `bd-${i}`;
     return `
-      <tr class="deployment-row" onclick="document.getElementById('${rowId}').classList.toggle('open'); document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'table-row' ? 'none' : 'table-row';">
+      <tr class="deployment-row ${d.deployer.checked ? "is-checked" : ""}" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'table-row' ? 'none' : 'table-row';">
+        <td>${checkbox(d.deployer.checked, d.deployerAddress)}</td>
         <td>${addrLink(d.tokenAddress)}</td>
         <td>${addrLink(d.deployerAddress)}</td>
-        <td>${scorePill(score)}</td>
+        <td>${scoreRing(score)}</td>
         <td>${badge("ERC-20", d.looksLikeErc20)}</td>
         <td>${badge("Pool", hasPool)}</td>
         <td>${badge("Buy", hasBuy)}</td>
-        <td>${badge(hasRug ? "RUG" : "OK", hasRug)}</td>
+        <td>${badge(hasRug ? "RUG" : "OK", hasRug, true)}</td>
         <td>${fmtTime(d.deployedAt)}</td>
       </tr>
       <tr class="breakdown-row" id="${rowId}" style="display:none">
-        <td colspan="8">${breakdownHtml(log)}</td>
+        <td colspan="9">${breakdownHtml(log)}</td>
       </tr>
     `;
   }).join("");
@@ -286,6 +495,7 @@ async function loadDeployments() {
 
 async function refresh() {
   try {
+    document.getElementById("hide-checked-toggle").checked = hideChecked;
     await Promise.all([loadStats(), loadClusters(), loadWatchlist(), loadDeployments()]);
     document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
   } catch (err) {
