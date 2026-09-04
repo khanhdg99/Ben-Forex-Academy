@@ -201,45 +201,78 @@ interface EtherscanStyleResponse {
   result: EtherscanStyleTokenTx[] | string;
 }
 
+// Blockscout paginates both APIs — a single call only ever returns one page
+// (commonly 50 items), which was silently starving the investigator down to
+// whatever fit in that one page instead of the "first 100 buyers" it's
+// supposed to scan. Both fetchers now page through until they've gathered
+// `limit` items, the API runs out of pages, or MAX_PAGES is hit (a safety
+// cap so a token with a huge transfer history can't turn one investigation
+// into dozens of sequential requests).
+const MAX_PAGES = 10;
+const CLASSIC_PAGE_SIZE = 100;
+
 async function getTokenTransfersClassic(
   tokenAddress: Address,
   limit: number,
 ): Promise<TokenTransfersResult> {
-  const data = await blockscoutClassicGet<EtherscanStyleResponse>({
-    module: "account",
-    action: "tokentx",
-    contractaddress: tokenAddress,
-    sort: "asc",
-  });
-  if (!data || !Array.isArray(data.result)) {
-    return { transfers: [], decimals: null, symbol: null };
+  const items: EtherscanStyleTokenTx[] = [];
+
+  for (let page = 1; items.length < limit && page <= MAX_PAGES; page++) {
+    const data = await blockscoutClassicGet<EtherscanStyleResponse>({
+      module: "account",
+      action: "tokentx",
+      contractaddress: tokenAddress,
+      sort: "asc",
+      page: String(page),
+      offset: String(CLASSIC_PAGE_SIZE),
+    });
+    if (!data || !Array.isArray(data.result) || data.result.length === 0) break;
+    items.push(...data.result);
+    if (data.result.length < CLASSIC_PAGE_SIZE) break; // fewer than a full page = last page
   }
 
-  const items = data.result.slice(0, limit);
+  const sliced = items.slice(0, limit);
   return {
-    transfers: items.map((t) => ({
+    transfers: sliced.map((t) => ({
       from: t.from as Address,
       to: t.to as Address,
       value: BigInt(t.value || "0"),
       timestamp: new Date(Number(t.timeStamp) * 1000),
       txHash: t.hash,
     })),
-    decimals: items[0]?.tokenDecimal ? Number(items[0].tokenDecimal) : null,
-    symbol: items[0]?.tokenSymbol ?? null,
+    decimals: sliced[0]?.tokenDecimal ? Number(sliced[0].tokenDecimal) : null,
+    symbol: sliced[0]?.tokenSymbol ?? null,
   };
 }
 
-async function getTokenTransfersV2(tokenAddress: Address, limit: number): Promise<TokenTransfersResult> {
-  const data = await blockscoutGet<BlockscoutTokenTransferListResponse>(
-    `/tokens/${tokenAddress}/transfers`,
-  );
-  if (!data) return { transfers: [], decimals: null, symbol: null };
+function toQueryString(params: Record<string, unknown>): string {
+  const stringParams: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params)) {
+    stringParams[key] = String(value);
+  }
+  return new URLSearchParams(stringParams).toString();
+}
 
-  const items = data.items.slice(0, limit);
-  const meta = items.find((t) => t.token)?.token;
+async function getTokenTransfersV2(tokenAddress: Address, limit: number): Promise<TokenTransfersResult> {
+  const items: BlockscoutTokenTransfer[] = [];
+  let nextParams: Record<string, unknown> | null = null;
+
+  for (let page = 0; items.length < limit && page < MAX_PAGES; page++) {
+    const query: string = nextParams ? `?${toQueryString(nextParams)}` : "";
+    const path = `/tokens/${tokenAddress}/transfers${query}`;
+    const data: BlockscoutTokenTransferListResponse | null =
+      await blockscoutGet<BlockscoutTokenTransferListResponse>(path);
+    if (!data || data.items.length === 0) break;
+    items.push(...data.items);
+    if (!data.next_page_params) break;
+    nextParams = data.next_page_params;
+  }
+
+  const sliced = items.slice(0, limit);
+  const meta = sliced.find((t) => t.token)?.token;
 
   return {
-    transfers: items.map((t) => ({
+    transfers: sliced.map((t) => ({
       from: t.from.hash as Address,
       to: t.to.hash as Address,
       value: BigInt(t.total?.value ?? "0"),
@@ -259,7 +292,7 @@ async function getTokenTransfersV2(tokenAddress: Address, limit: number): Promis
  * Blockscout instances also expose — a second, differently-shaped
  * endpoint that's more likely to still work if the v2 one doesn't.
  */
-export async function getTokenTransfers(tokenAddress: Address, limit = 300): Promise<TokenTransfersResult> {
+export async function getTokenTransfers(tokenAddress: Address, limit = 500): Promise<TokenTransfersResult> {
   const primary = await getTokenTransfersV2(tokenAddress, limit);
   if (primary.transfers.length > 0) return primary;
 

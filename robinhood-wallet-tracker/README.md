@@ -391,6 +391,16 @@ sequencer is first-come-first-served, so the only latency lever here is
   correctly picked up on the 3rd try). If 403s still show up in the log
   after this, Blockscout's bot protection has likely gotten stricter and
   the headers may need updating to match a current real browser's.
+  Also confirmed from a real run: neither the v2 nor classic
+  token-transfers fetch was paginating — each made exactly one API call
+  and kept whatever fit in that single page (commonly ~50 items), so a
+  token with real trading activity was silently capped down to a handful
+  of buyers instead of the "first 100" the investigator is supposed to
+  scan. Both now page through (v2 via `next_page_params`, classic via
+  `page`/`offset`) until they've gathered enough items or run out of
+  pages — verified against a local mock server that a 3-page response is
+  fully accumulated (not just its first page) and that requesting fewer
+  items than are available correctly stops early instead of over-fetching.
 - **No wallet clustering yet** — the brief's step 6 (clustering deployers by
   shared funding source into ownership groups, beyond simple "this address
   funded N tracked wallets" reuse counting) isn't implemented. The
