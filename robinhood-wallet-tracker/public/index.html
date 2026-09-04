@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Robinhood Chain Wallet Tracker</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0e14;
+    --panel: #131722;
+    --panel-2: #1b2030;
+    --border: #262c3d;
+    --text: #e6e9f0;
+    --muted: #8b93a7;
+    --green: #3ecf8e;
+    --yellow: #e0b94f;
+    --orange: #e88a3a;
+    --red: #ef5555;
+    --accent: #6d8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  main { padding: 24px 28px; max-width: 1200px; margin: 0 auto; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+
+  section { margin-bottom: 32px; }
+  section h2 { font-size: 14px; font-weight: 600; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  section h2 .count { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  tr:last-child td { border-bottom: none; }
+  tr.deployment-row { cursor: pointer; }
+  tr.deployment-row:hover { background: var(--panel-2); }
+
+  a.addr { color: var(--accent); text-decoration: none; font-family: ui-monospace, monospace; }
+  a.addr:hover { text-decoration: underline; }
+
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+  .pill.s-low { background: #1c3a2c; color: var(--green); }
+  .pill.s-mid { background: #3a3320; color: var(--yellow); }
+  .pill.s-high { background: #3d2818; color: var(--orange); }
+  .pill.s-crit { background: #3d1a1a; color: var(--red); }
+
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 5px; font-size: 11px; margin-right: 4px; background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+  .badge.on { color: var(--text); border-color: var(--accent); }
+
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+
+  .breakdown-row td { background: #0e1220; }
+  .breakdown { padding: 10px 20px 16px; font-size: 13px; }
+  .breakdown-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--border); color: var(--muted); }
+  .breakdown-item:last-child { border-bottom: none; }
+  .breakdown-item b { color: var(--text); }
+  .breakdown-item .pts { color: var(--accent); font-weight: 700; min-width: 40px; text-align: right; }
+
+  button.rm {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 4px 8px; cursor: pointer; font-size: 12px;
+  }
+  button.rm:hover { border-color: var(--red); color: var(--red); }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🔎 Robinhood Chain Wallet Tracker</h1>
+    <div class="sub" id="meta">đang tải...</div>
+  </header>
+
+  <main>
+    <div class="stats" id="stats"></div>
+
+    <section>
+      <h2>Watchlist <span class="count" id="watchlist-count"></span></h2>
+      <table id="watchlist-table">
+        <thead><tr><th>Wallet</th><th>Score</th><th>Lý do</th><th>Thêm lúc</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Deployment gần đây <span class="count" id="deployments-count"></span></h2>
+      <table id="deployments-table">
+        <thead>
+          <tr>
+            <th>Token</th><th>Deployer</th><th>Score</th><th>ERC-20</th>
+            <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Deploy lúc</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>Tự động làm mới mỗi 5 giây · Ngưỡng cảnh báo hiện tại: <span id="threshold">–</span></footer>
+
+<script>
+const explorer = (addr) => `https://robinhoodchain.blockscout.com/address/${addr}`;
+const short = (addr) => addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "–";
+const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("vi-VN") : "–";
+
+function scoreClass(score) {
+  if (score >= 80) return "s-crit";
+  if (score >= 60) return "s-high";
+  if (score >= 35) return "s-mid";
+  return "s-low";
+}
+function scorePill(score) {
+  return `<span class="pill ${scoreClass(score)}">${score}</span>`;
+}
+function addrLink(addr) {
+  return `<a class="addr" href="${explorer(addr)}" target="_blank" rel="noopener">${short(addr)}</a>`;
+}
+function badge(label, on) {
+  return `<span class="badge ${on ? "on" : ""}">${label}</span>`;
+}
+
+async function fetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return res.json();
+}
+
+async function loadStats() {
+  const s = await fetchJson("/api/stats");
+  document.getElementById("stats").innerHTML = `
+    <div class="stat"><div class="label">Token đã theo dõi</div><div class="value">${s.totalDeployments}</div></div>
+    <div class="stat"><div class="label">Ví đã ghi nhận</div><div class="value">${s.totalWallets}</div></div>
+    <div class="stat"><div class="label">Đang trong watchlist</div><div class="value">${s.watchlisted}</div></div>
+    <div class="stat"><div class="label">Cảnh báo (24h)</div><div class="value">${s.alertableToday}</div></div>
+  `;
+  document.getElementById("threshold").textContent = s.threshold;
+}
+
+async function removeWatch(address) {
+  await fetch(`/api/watchlist/${address}`, { method: "DELETE" });
+  loadWatchlist();
+}
+
+async function loadWatchlist() {
+  const entries = await fetchJson("/api/watchlist");
+  document.getElementById("watchlist-count").textContent = `(${entries.length})`;
+  const tbody = document.querySelector("#watchlist-table tbody");
+  if (entries.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Chưa có ví nào trong watchlist</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map((e) => `
+    <tr>
+      <td>${addrLink(e.walletAddress)}</td>
+      <td>${scorePill(e.wallet.latestRiskScore)}</td>
+      <td>${e.reason}</td>
+      <td>${fmtTime(e.addedAt)}</td>
+      <td><button class="rm" onclick="removeWatch('${e.walletAddress}')">Bỏ theo dõi</button></td>
+    </tr>
+  `).join("");
+}
+
+function breakdownHtml(log) {
+  if (!log) return `<div class="breakdown"><span class="empty">Chưa có điểm rủi ro</span></div>`;
+  const items = log.breakdown.map((b) => `
+    <div class="breakdown-item"><span><b>${b.rule}</b> — ${b.reason}</span><span class="pts">+${b.points}</span></div>
+  `).join("");
+  return `<div class="breakdown">${items}</div>`;
+}
+
+async function loadDeployments() {
+  const deployments = await fetchJson("/api/deployments?limit=100");
+  document.getElementById("deployments-count").textContent = `(${deployments.length})`;
+  const tbody = document.querySelector("#deployments-table tbody");
+  if (deployments.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Chưa phát hiện deployment nào</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = deployments.map((d, i) => {
+    const events = d.liquidityEvents || [];
+    const hasPool = events.some((e) => e.type === "POOL_CREATED");
+    const hasBuy = events.some((e) => e.type === "INITIAL_BUY");
+    const hasRug = events.some((e) => e.type === "LIQUIDITY_REMOVED");
+    const log = d.scoreLogs && d.scoreLogs[0];
+    const score = log ? log.score : 0;
+    const rowId = `bd-${i}`;
+    return `
+      <tr class="deployment-row" onclick="document.getElementById('${rowId}').classList.toggle('open'); document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'table-row' ? 'none' : 'table-row';">
+        <td>${addrLink(d.tokenAddress)}</td>
+        <td>${addrLink(d.deployerAddress)}</td>
+        <td>${scorePill(score)}</td>
+        <td>${badge("ERC-20", d.looksLikeErc20)}</td>
+        <td>${badge("Pool", hasPool)}</td>
+        <td>${badge("Buy", hasBuy)}</td>
+        <td>${badge(hasRug ? "RUG" : "OK", hasRug)}</td>
+        <td>${fmtTime(d.deployedAt)}</td>
+      </tr>
+      <tr class="breakdown-row" id="${rowId}" style="display:none">
+        <td colspan="8">${breakdownHtml(log)}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function refresh() {
+  try {
+    await Promise.all([loadStats(), loadWatchlist(), loadDeployments()]);
+    document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
+  } catch (err) {
+    document.getElementById("meta").textContent = "lỗi tải dữ liệu — bot/API có đang chạy không?";
+    console.error(err);
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

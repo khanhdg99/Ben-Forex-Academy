@@ -24,6 +24,7 @@ RPC/WebSocket Listener (viem)
   → Postgres (wallets, token deployments, liquidity/swap events, score log)
   → Watchlist Manager
   → Telegram Alert Service
+  → Web Dashboard (reads the same Postgres DB, http://localhost:3000)
 ```
 
 - `src/chain/` — viem clients + watchers (blocks, contract creation, pool
@@ -37,14 +38,55 @@ RPC/WebSocket Listener (viem)
   windows.
 - `src/queue/` — BullMQ queue/worker.
 - `src/watchlist/`, `src/alerts/` — watchlist persistence + Telegram bot.
+- `src/web/`, `public/` — read-only Express API + static dashboard page.
 
-## Setup
+## Setup trên macOS (chạy trực tiếp bằng terminal, không cần Docker)
+
+Cần Homebrew (https://brew.sh) và Node.js ≥20.
+
+```bash
+# 1. Cài Postgres + Redis qua Homebrew, chạy như service nền
+brew install node postgresql@16 redis
+brew services start postgresql@16
+brew services start redis
+
+# 2. Tạo database
+createdb robinhood_tracker
+
+# 3. Cài dependencies của project
+cd robinhood-wallet-tracker
+npm install
+cp .env.example .env
+```
+
+Mở `.env` và điền:
+- `RPC_HTTP_URL` / `RPC_WS_URL` — xem phần Step 1 bên dưới
+- `DATABASE_URL=postgresql://<mac_username>@localhost:5432/robinhood_tracker`
+  (Postgres của Homebrew mặc định không cần password, dùng username macOS của bạn —
+  chạy `whoami` để lấy, hoặc tạo role riêng bằng `createuser`)
+- `REDIS_URL=redis://localhost:6379` (giữ nguyên mặc định)
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` — xem phần Telegram bên dưới (không bắt buộc,
+  bỏ trống thì cảnh báo chỉ in ra terminal + hiện trên web dashboard)
+
+```bash
+npm run db:migrate     # tạo schema Postgres (chỉ cần chạy 1 lần, hoặc khi đổi schema)
+```
+
+Từ đây chạy `npm run dev` (xem phần "Steps 3-5" bên dưới) — lệnh này khởi động cùng lúc:
+bot theo dõi chain, queue worker, Telegram bot, **và web dashboard** trong cùng một
+tiến trình terminal. Để nó chạy tiếp khi đóng terminal, dùng `nohup npm start &`
+sau khi `npm run build`, hoặc cài `pm2` (`npm i -g pm2 && pm2 start dist/index.js --name robinhood-tracker`).
+
+<details>
+<summary>Setup bằng Docker thay vì Homebrew (tùy chọn)</summary>
 
 ```bash
 cd robinhood-wallet-tracker
 npm install
 cp .env.example .env   # fill in RPC URLs, Telegram token, etc.
 ```
+
+</details>
 
 ### Step 1 — confirm chain connectivity
 
@@ -79,26 +121,57 @@ Uniswap factory addresses weren't confirmed during research (see
 `UNISWAP_V2_FACTORY`/`UNISWAP_V3_FACTORY` in `.env` once you've confirmed
 them to cut down noise from unrelated Uniswap forks.
 
-### Steps 3-5 — full pipeline (scoring, DB, watchlist, Telegram)
+### Steps 3-5 — full pipeline (scoring, DB, watchlist, Telegram, web dashboard)
 
 ```bash
-docker compose up -d postgres redis
+# (Docker path) docker compose up -d postgres redis — skip if using Homebrew above
 npm run db:migrate       # creates the Postgres schema
 npm run dev               # or: npm run build && npm start
 ```
 
-This starts the queue worker, the Telegram bot (if `TELEGRAM_BOT_TOKEN` is
-set), and the chain watchers together. Every deployment/pool/swap/burn event
-gets scored via `src/detection/rules.ts`, persisted, and — once a wallet's
-score crosses `ALERT_SCORE_THRESHOLD` (default 60) — pushed to your
-configured Telegram chat, with subsequent activity from that wallet
-triggering a lighter "watchlisted wallet is active again" alert.
+This single command starts the queue worker, the Telegram bot (if
+`TELEGRAM_BOT_TOKEN` is set), the chain watchers, **and the web dashboard**
+(http://localhost:3000 by default) together in one terminal. Every
+deployment/pool/swap/burn event gets scored via `src/detection/rules.ts`,
+persisted, and — once a wallet's score crosses `ALERT_SCORE_THRESHOLD`
+(default 60) — pushed to your configured Telegram chat and shown on the
+dashboard, with subsequent activity from that wallet triggering a lighter
+"watchlisted wallet is active again" alert.
 
-To run everything (including the bot) in Docker:
+To run everything (including the bot) in Docker instead:
 
 ```bash
 docker compose up -d --build
 ```
+
+## Web dashboard
+
+A small local dashboard for eyeballing what the bot has found, instead of
+only reading terminal logs / Telegram:
+
+```bash
+npm run web        # standalone, if you just want the dashboard against
+                    # data the bot already collected (e.g. from another
+                    # terminal tab running `npm run dev`)
+```
+
+Or just leave it running as part of `npm run dev` / `npm start` — the
+dashboard starts automatically alongside the bot. Open
+**http://localhost:3000** (or whatever `WEB_PORT` is set to in `.env`).
+
+It shows, refreshing every 5 seconds:
+- Summary stats (tokens tracked, wallets seen, watchlist size, alerts in the last 24h)
+- **Watchlist**: every wallet that crossed the alert threshold, with its
+  latest score and a button to remove it
+- **Recent deployments**: every tracked token with its deployer, current
+  risk score, and status badges (ERC-20-like? pool created? initial buy
+  seen? rug detected?) — click a row to expand the full score breakdown
+  (which rules fired and why)
+
+It's a thin read-only Express API (`src/web/server.ts`) over the same
+Postgres database the bot writes to, plus a single static HTML page
+(`public/index.html`, vanilla JS, no build step) — nothing to compile or
+deploy separately.
 
 ### Telegram bot setup
 

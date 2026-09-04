@@ -23,6 +23,8 @@ const envSchema = z.object({
   TELEGRAM_CHAT_ID: z.string().optional().default(""),
 
   LOG_LEVEL: z.string().default("info"),
+
+  WEB_PORT: z.coerce.number().default(3000),
 });
 
 export type Env = z.infer<typeof envSchema>;
