@@ -198,8 +198,8 @@
     background: var(--panel-3); cursor: pointer; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center; transition: .1s;
   }
-  .checkbox:hover { border-color: var(--accent); }
-  .checkbox.checked { background: var(--accent); border-color: var(--accent); }
+  .checkbox:hover { border-color: var(--red); }
+  .checkbox.checked { background: var(--red); border-color: var(--red); }
   .checkbox svg { width: 10px; height: 10px; opacity: 0; }
   .checkbox.checked svg { opacity: 1; }
 
@@ -402,7 +402,7 @@
 
 <script>
 const CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="#0b0e17" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>`;
-const explorer = (addr) => `https://robinhoodchain.blockscout.com/address/${addr}`;
+const explorer = (addr) => `https://app.zerion.io/${addr}/overview`;
 const short = (addr) => addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "–";
 const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("vi-VN") : "–";
 
@@ -518,10 +518,24 @@ async function loadStats() {
   document.getElementById("threshold").textContent = s.threshold;
 }
 
+// Rendered tables are rebuilt only when their data actually changed (a
+// signature of the relevant fields per row) — the 5s auto-refresh
+// unconditionally replacing innerHTML every tick, even with identical
+// data, was the cause of the dashboard's visible flicker: it destroys and
+// recreates every row's DOM node (resetting hover state, any expanded
+// breakdown rows, etc.) on every single tick regardless of whether
+// anything changed.
+let lastStarredSignature = "";
+
 async function loadStarred() {
   const wallets = await fetchJson("/api/starred");
   document.getElementById("starred-count").textContent = wallets.length;
   const tbody = document.querySelector("#starred-table tbody");
+
+  const signature = wallets.map((w) => `${w.address}:${w.checked}:${w.latestRiskScore}:${w.starredAt}`).join("|");
+  if (signature === lastStarredSignature && tbody.children.length > 0) return;
+  lastStarredSignature = signature;
+
   if (wallets.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5" class="empty">Chưa đánh dấu ví nào — bấm ⭐ cạnh 1 ví bất kỳ để thêm vào đây</td></tr>`;
     return;
@@ -689,11 +703,20 @@ async function removeWatch(address) {
   refresh();
 }
 
+let lastWatchlistSignature = "";
+
 async function loadWatchlist() {
   let entries = await fetchJson("/api/watchlist");
   if (hideChecked) entries = entries.filter((e) => !e.wallet.checked);
   document.getElementById("watchlist-count").textContent = entries.length;
   const tbody = document.querySelector("#watchlist-table tbody");
+
+  const signature = entries
+    .map((e) => `${e.walletAddress}:${e.wallet.checked}:${e.wallet.starred}:${e.wallet.latestRiskScore}:${e.reason}`)
+    .join("|");
+  if (signature === lastWatchlistSignature && tbody.children.length > 0) return;
+  lastWatchlistSignature = signature;
+
   if (entries.length === 0) {
     tbody.innerHTML = `<tr><td colspan="6" class="empty">Chưa có ví nào trong watchlist</td></tr>`;
     return;
@@ -718,11 +741,23 @@ function breakdownHtml(log) {
   return `<div class="breakdown">${items}</div>`;
 }
 
+let lastDeploymentsSignature = "";
+
 async function loadDeployments() {
   let deployments = await fetchJson("/api/deployments?limit=100");
   if (hideChecked) deployments = deployments.filter((d) => !d.deployer.checked);
   document.getElementById("deployments-count").textContent = deployments.length;
   const tbody = document.querySelector("#deployments-table tbody");
+
+  const signature = deployments
+    .map((d) => {
+      const log = d.scoreLogs && d.scoreLogs[0];
+      return `${d.tokenAddress}:${d.deployer.checked}:${d.deployer.starred}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}`;
+    })
+    .join("|");
+  if (signature === lastDeploymentsSignature && tbody.children.length > 0) return;
+  lastDeploymentsSignature = signature;
+
   if (deployments.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" class="empty">Chưa phát hiện deployment nào</td></tr>`;
     return;

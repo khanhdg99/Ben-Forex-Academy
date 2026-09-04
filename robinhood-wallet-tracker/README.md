@@ -185,11 +185,24 @@ It shows, refreshing every 5 seconds:
 Every wallet row (watchlist, deployments, cluster members, token
 investigator results) carries two independent toggles, both persisted to
 Postgres (`Wallet.checked`/`.starred`):
-- ☑ **Đã check** — "I've reviewed this, done with it" — dims + strikes
+- ☑ **Đã check** — "I've reviewed this, done with it" — turns the tick
+  **red** once checked (so it stands out as your own mark), dims + strikes
   through the row; the header's "Ẩn ví đã check" switch hides them entirely
 - ⭐ **Quan trọng** — "keep an eye on this one" — highlights the row and
   adds it to the dedicated Ví quan trọng section above, so starred wallets
   stay easy to find no matter which table they came from
+
+Every address shown anywhere on the dashboard links out to its
+**Zerion** wallet-overview page (`https://app.zerion.io/<address>/overview`)
+so you can eyeball a wallet's balances/activity in one click. Note Zerion
+may not index Robinhood Chain (chain ID 4663) specifically yet since it's a
+very new L2 — the link still opens the address page, it just may not show
+this chain's activity if Zerion hasn't added support for it.
+
+Tables only re-render when their underlying data actually changed (a
+per-row signature comparison) instead of on every 5s tick regardless — this
+is what stops the dashboard from visibly flickering/jumping when nothing
+new happened, which was most ticks.
 
 It's a thin read-only Express API (`src/web/server.ts`) over the same
 Postgres database the bot writes to, plus a single static HTML page
