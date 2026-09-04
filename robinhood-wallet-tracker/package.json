@@ -1,0 +1,40 @@
+{
+  "name": "robinhood-wallet-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "On-chain wallet tracker for suspicious memecoin-deployer behavior on Robinhood Chain",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "step1:test-connection": "tsx scripts/testConnection.ts",
+    "step2:log-events": "tsx scripts/logDeploymentEvents.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src scripts --ext .ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0",
+    "bullmq": "^5.13.2",
+    "dotenv": "^16.4.5",
+    "grammy": "^1.30.0",
+    "ioredis": "^5.4.1",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.2.2",
+    "viem": "^2.21.19",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "prisma": "^5.20.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

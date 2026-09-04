@@ -1,0 +1,125 @@
+import type { Address } from "viem";
+import { prisma } from "./prisma.js";
+import type { RiskScoreResult } from "../detection/types.js";
+
+export async function upsertWallet(
+  address: Address,
+  fields: Partial<{
+    fundingSource: string;
+    fundingTxHash: string;
+    fundedAt: Date;
+  }> = {},
+) {
+  return prisma.wallet.upsert({
+    where: { address: address.toLowerCase() },
+    create: { address: address.toLowerCase(), ...fields },
+    update: { lastActiveAt: new Date(), ...fields },
+  });
+}
+
+export async function recordTokenDeployment(params: {
+  tokenAddress: Address;
+  deployerAddress: Address;
+  deployTxHash: string;
+  deployedAt: Date;
+  looksLikeErc20: boolean;
+}) {
+  await upsertWallet(params.deployerAddress);
+  return prisma.tokenDeployment.upsert({
+    where: { tokenAddress: params.tokenAddress.toLowerCase() },
+    create: {
+      tokenAddress: params.tokenAddress.toLowerCase(),
+      deployerAddress: params.deployerAddress.toLowerCase(),
+      deployTxHash: params.deployTxHash,
+      deployedAt: params.deployedAt,
+      looksLikeErc20: params.looksLikeErc20,
+    },
+    update: {},
+  });
+}
+
+export async function recordLiquidityEvent(params: {
+  tokenAddress: Address;
+  type: "POOL_CREATED" | "INITIAL_BUY" | "LIQUIDITY_REMOVED";
+  dex?: string;
+  poolAddress?: Address;
+  actorAddress: Address;
+  txHash: string;
+  occurredAt: Date;
+  amountPct?: number;
+  minutesAfterPool?: number;
+}) {
+  const deployment = await prisma.tokenDeployment.findUnique({
+    where: { tokenAddress: params.tokenAddress.toLowerCase() },
+  });
+  if (!deployment) return null;
+
+  return prisma.liquidityEvent.create({
+    data: {
+      tokenDeploymentId: deployment.id,
+      type: params.type,
+      dex: params.dex,
+      poolAddress: params.poolAddress?.toLowerCase(),
+      actorAddress: params.actorAddress.toLowerCase(),
+      txHash: params.txHash,
+      occurredAt: params.occurredAt,
+      amountPct: params.amountPct,
+      minutesAfterPool: params.minutesAfterPool,
+    },
+  });
+}
+
+/** Count how many other deployer wallets share the same funding source. */
+export async function countFundingSourceReuse(fundingSource: Address): Promise<number> {
+  return prisma.wallet.count({
+    where: { fundingSource: fundingSource.toLowerCase() },
+  });
+}
+
+/**
+ * Prior deployments + prior rugs for a wallet, used to feed the scoring engine.
+ * `excludeTokenAddress` should be the token currently being scored, so its own
+ * deployment/liquidity-removal doesn't get counted as "prior" history of itself.
+ */
+export async function getWalletHistory(address: Address, excludeTokenAddress?: Address) {
+  const wallet = await prisma.wallet.findUnique({
+    where: { address: address.toLowerCase() },
+    include: {
+      deployments: { include: { liquidityEvents: true } },
+    },
+  });
+  if (!wallet) return { priorDeployments: 0, priorRugs: 0 };
+
+  const otherDeployments = wallet.deployments.filter(
+    (d) => d.tokenAddress !== excludeTokenAddress?.toLowerCase(),
+  );
+
+  const priorDeployments = otherDeployments.length;
+  const priorRugs = otherDeployments.filter((d) =>
+    d.liquidityEvents.some((e) => e.type === "LIQUIDITY_REMOVED"),
+  ).length;
+
+  return { priorDeployments, priorRugs };
+}
+
+export async function saveRiskScore(result: RiskScoreResult) {
+  const deployment = await prisma.tokenDeployment.findUnique({
+    where: { tokenAddress: result.tokenAddress.toLowerCase() },
+  });
+  if (!deployment) return null;
+
+  await prisma.wallet.update({
+    where: { address: result.wallet.toLowerCase() },
+    data: { latestRiskScore: result.score },
+  });
+
+  return prisma.riskScoreLog.create({
+    data: {
+      walletAddress: result.wallet.toLowerCase(),
+      tokenDeploymentId: deployment.id,
+      score: result.score,
+      breakdown: result.breakdown as unknown as object,
+      computedAt: result.computedAt,
+    },
+  });
+}

@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Wallet {
+  address          String   @id
+  firstSeenAt      DateTime @default(now())
+  lastActiveAt     DateTime @default(now())
+  fundingSource    String?
+  fundingTxHash    String?
+  fundedAt         DateTime?
+  latestRiskScore  Int      @default(0)
+  priorDeployments Int      @default(0)
+  priorRugs        Int      @default(0)
+  notes            String?
+
+  deployments   TokenDeployment[]
+  scoreLogs     RiskScoreLog[]
+  watchlistEntry WatchlistEntry?
+
+  @@index([fundingSource])
+  @@index([latestRiskScore])
+}
+
+model TokenDeployment {
+  id             String   @id @default(cuid())
+  tokenAddress   String   @unique
+  deployerAddress String
+  deployer       Wallet   @relation(fields: [deployerAddress], references: [address])
+  deployTxHash   String
+  deployedAt     DateTime
+  looksLikeErc20 Boolean  @default(false)
+  name           String?
+  symbol         String?
+
+  liquidityEvents LiquidityEvent[]
+  swapEvents      SwapEvent[]
+  scoreLogs       RiskScoreLog[]
+
+  @@index([deployerAddress])
+  @@index([deployedAt])
+}
+
+enum LiquidityEventType {
+  POOL_CREATED
+  INITIAL_BUY
+  LIQUIDITY_REMOVED
+}
+
+model LiquidityEvent {
+  id                String             @id @default(cuid())
+  tokenDeploymentId String
+  tokenDeployment   TokenDeployment    @relation(fields: [tokenDeploymentId], references: [id])
+  type              LiquidityEventType
+  dex               String?
+  poolAddress       String?
+  actorAddress      String
+  txHash            String
+  occurredAt        DateTime
+  amountPct         Float?
+  minutesAfterPool  Float?
+
+  @@index([tokenDeploymentId])
+  @@index([type])
+}
+
+model SwapEvent {
+  id                String          @id @default(cuid())
+  tokenDeploymentId String
+  tokenDeployment   TokenDeployment @relation(fields: [tokenDeploymentId], references: [id])
+  walletAddress     String
+  txHash            String
+  direction         String
+  blockNumber       BigInt
+  occurredAt        DateTime
+
+  @@index([tokenDeploymentId])
+  @@index([walletAddress])
+}
+
+model RiskScoreLog {
+  id                String          @id @default(cuid())
+  walletAddress     String
+  wallet            Wallet          @relation(fields: [walletAddress], references: [address])
+  tokenDeploymentId String
+  tokenDeployment   TokenDeployment @relation(fields: [tokenDeploymentId], references: [id])
+  score             Int
+  breakdown         Json
+  computedAt        DateTime        @default(now())
+
+  @@index([walletAddress])
+  @@index([score])
+}
+
+model WatchlistEntry {
+  walletAddress String   @id
+  wallet        Wallet   @relation(fields: [walletAddress], references: [address])
+  addedAt       DateTime @default(now())
+  reason        String
+  alertsEnabled Boolean  @default(true)
+}

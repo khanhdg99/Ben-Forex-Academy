@@ -1,0 +1,82 @@
+# Robinhood Chain — verified facts (as of Sept 2026)
+
+Gathered via web search from this session's sandbox, which **cannot reach
+docs.robinhood.com, alchemy.com, or blog.uniswap.org directly** (egress
+policy blocks them) — everything below comes from search-result snippets,
+not a first-hand fetch of the primary source. **Re-verify every value here
+against the official docs before depending on it for anything
+production-critical.**
+
+## Network
+
+| Field | Value | Source |
+|---|---|---|
+| Chain ID | `4663` | [TrustSwap network details](https://trustswap.com/robinhood/network-details), [NockTerminal](https://nockterminal.com/guides/robinhood-chain-rpc-url) |
+| Public RPC | `https://rpc.mainnet.chain.robinhood.com` | Search snippet referencing [docs.robinhood.com/chain/connecting](https://docs.robinhood.com/chain/connecting) |
+| Block explorer | `https://robinhoodchain.blockscout.com` (Blockscout) | [HoodScan](https://www.hood-chain.com/), TrustSwap |
+| Native gas token | ETH | [Robinhood support article](https://robinhood.com/us/en/support/articles/robinhood-chain-mainnet/) |
+| Stack | Arbitrum Orbit L2, settles to Ethereum via blobs | [crypto.news explainer](https://crypto.news/what-is-robinhood-chain-brokers-blockchain-explained/), [Alchemy blog](https://www.alchemy.com/blog/robinhood-chain-mainnet-is-live-on-alchemy) |
+| Block time | ~100ms | [cryptobriefing](https://cryptobriefing.com/robinhood-arbitrum-layer-2-mainnet-launch/) |
+| Testnet launch | Feb 10, 2026 | [Robinhood newsroom](https://robinhood.com/us/en/newsroom/robinhood-chain-launches-public-testnet) |
+| Mainnet launch | Jul 1, 2026 ("The World is Flat" keynote, London) | [cryptobriefing](https://cryptobriefing.com/robinhood-arbitrum-layer-2-mainnet-launch/) |
+
+**Important:** the public RPC is explicitly called out as rate-limited and
+not recommended for 24/7 production use. Use a managed provider instead.
+
+## RPC providers
+
+- **Alchemy: confirmed live**, both mainnet and testnet, with RPC, WebSocket,
+  webhooks, and data APIs. Explicitly named as a recommended provider.
+  Sources: [Alchemy blog post](https://www.alchemy.com/blog/robinhood-chain-mainnet-is-live-on-alchemy),
+  [Alchemy RPC page](https://www.alchemy.com/rpc/robinhood).
+- **Infura: not confirmed.** Search did not surface Infura support; treat it
+  as unsupported until you check https://www.infura.io/networks yourself.
+- Other providers mentioned in search results: QuickNode, Chainstack,
+  OrbitFlare, dRPC. Chainstack in particular publishes Robinhood-specific
+  tooling docs (`docs.chainstack.com/docs/robinhood-tooling`) — worth
+  checking if Alchemy access is a blocker.
+- Since the chain is Arbitrum Orbit, Arbitrum's own Orbit node-runner tooling
+  is the fallback if you ever need to run your own full node instead of
+  relying on a third party (see "Run a Robinhood Chain full node" referenced
+  at `docs.robinhood.com/chain/run-a-full-node/`).
+
+## Uniswap deployment
+
+Uniswap v2, v3, v4, and UniswapX are reported live on Robinhood Chain from
+launch ([Uniswap blog: "Uniswap is Live on Robinhood Chain"](https://blog.uniswap.org/robinhood-chain-is-live)).
+**Exact factory/router contract addresses were not found via search** — pull
+them from `docs.robinhood.com/chain/protocol-contracts` (referenced by
+search snippets but not independently fetched here) or read them directly
+off verified contracts on the Blockscout explorer. Until you've confirmed
+them, `.env`'s `UNISWAP_V2_FACTORY`/`UNISWAP_V3_FACTORY` are left blank and
+the pool-creation watcher matches on the `PairCreated`/`PoolCreated` event
+*signature* chain-wide instead of a specific factory address — this works
+without knowing the address, at the cost of also picking up any other
+Uniswap-shaped fork/clone deployed on the chain.
+
+## Memecoin activity — premise confirmed
+
+This is the most important finding: **the premise of this bot is validated**.
+Within two weeks of mainnet launch, DEX volume on Robinhood Chain reportedly
+jumped from ~$200K to over $500M, led by meme tokens (CASHCAT cited as the
+flagship). Multiple sources describe an active scam wave — honeypots,
+copycat tokens, liquidity pulls — consistent enough that third-party "safety
+checklists" for Robinhood Chain memecoins already exist (LP lock status,
+verified contract, no mint function, deployer wallet history).
+
+Sources: [Bitcoin Foundation — Top 5 Robinhood Chain Memecoins](https://bitcoinfoundation.org/news/altcoins/top-5-robinhood-chain-memecoins-to-buy/),
+[TrustSwap — Robinhood Chain Memecoins Safety-Checked List](https://trustswap.com/robinhood/memecoins),
+[Memeburn — What Is Robinhood Chain? Built for Stocks, Run by Memes](https://memeburn.com/what-is-robinhood-chain-built-for-stocks-run-by-memes/).
+
+## What to verify yourself before running this in production
+
+1. Chain ID, RPC URL, WS URL — confirm at `docs.robinhood.com/chain/connecting`.
+2. Uniswap factory addresses — confirm at `docs.robinhood.com/chain/protocol-contracts`
+   or by reading verified contracts on Blockscout.
+3. Blockscout API base path/shape — the v2 REST API used in
+   `src/chain/blockscoutClient.ts` (`/api/v2/addresses/{address}/transactions`)
+   is the current standard Blockscout shape, but confirm against the
+   instance's own Swagger docs (`robinhoodchain.blockscout.com/api-docs`)
+   since exact fields can drift between Blockscout versions.
+4. Whether Infura support has since shipped, if you'd rather not depend on
+   Alchemy alone.
