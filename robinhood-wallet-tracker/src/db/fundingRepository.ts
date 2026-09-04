@@ -167,10 +167,25 @@ export async function findClusterForWallet(address: Address) {
 }
 
 export async function listClusters() {
-  return prisma.fundingCluster.findMany({
+  const clusters = await prisma.fundingCluster.findMany({
     orderBy: [{ starred: "desc" }, { lastUpdatedAt: "desc" }],
     take: 100,
   });
+
+  // The source address is a wallet like any other — surface whether *it*
+  // has been marked "đã check" so the card header can show the same red
+  // tick used everywhere else, even though a source doesn't always have
+  // its own Wallet row (it's only created lazily, e.g. on first check).
+  const sourceWallets = await prisma.wallet.findMany({
+    where: { address: { in: clusters.map((c) => c.sourceAddress) } },
+    select: { address: true, checked: true },
+  });
+  const checkedByAddress = new Map(sourceWallets.map((w) => [w.address, w.checked]));
+
+  return clusters.map((c) => ({
+    ...c,
+    sourceChecked: checkedByAddress.get(c.sourceAddress) ?? false,
+  }));
 }
 
 /** Flips a cluster's "I need to watch this whole group" flag. */

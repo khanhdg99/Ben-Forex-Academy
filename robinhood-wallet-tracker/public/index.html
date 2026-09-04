@@ -609,7 +609,7 @@ async function loadClusters() {
   document.getElementById("clusters-count").textContent = clusters.length;
   const grid = document.getElementById("clusters-grid");
 
-  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}:${c.starred}:${c.matchType}`).join("|");
+  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}:${c.starred}:${c.matchType}:${c.sourceChecked}`).join("|");
   const structureChanged = signature !== lastClustersSignature || grid.children.length === 0;
 
   if (structureChanged) {
@@ -634,7 +634,10 @@ async function loadClusters() {
                 </div>
               </div>
               <div class="cc-actions">
-                <button class="star-btn ${c.starred ? "starred" : ""}" title="Đánh dấu cả cụm cần để ý" onclick="event.stopPropagation(); toggleClusterStarred('${c.sourceAddress}', ${!c.starred})">${STAR_ICON}</button>
+                <span class="cell-actions">
+                  ${checkbox(c.sourceChecked, c.sourceAddress)}
+                  <button class="star-btn ${c.starred ? "starred" : ""}" title="Đánh dấu cả cụm cần để ý" onclick="event.stopPropagation(); toggleClusterStarred('${c.sourceAddress}', ${!c.starred})">${STAR_ICON}</button>
+                </span>
                 <span class="cc-badge">${c.walletCount} ví con</span>
               </div>
             </div>

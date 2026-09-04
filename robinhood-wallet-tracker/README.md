@@ -263,6 +263,9 @@ a wrong number. Click the ⭐ on a card's header to star the *whole cluster*
 (separate from starring individual member wallets below it) — starred
 clusters get a gold border and always sort to the top of the list, so an
 important cluster stays easy to find regardless of how recently it updated.
+There's also a checkbox right next to it — that marks the cluster's
+**source wallet itself** as checked (turns the same red tick used
+everywhere else), independent of checking individual member wallets below.
 
 From then on, **any purchase by a wallet belonging to that cluster on a
 freshly-launched token** fires an immediate, separate Telegram alert
