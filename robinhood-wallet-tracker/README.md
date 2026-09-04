@@ -219,7 +219,10 @@ in the dashboard's "Cụm ví nghi vấn" section and via a Telegram alert.
 Cluster cards stay expanded across the dashboard's 5s auto-refresh once
 opened. Forgot which cluster a wallet belonged to? Paste its address into
 the small lookup box above the cluster list — it finds and auto-opens the
-matching cluster card for you.
+matching cluster card for you. Each member row also shows how much was
+sent to fund it, converted to USD (`src/chain/priceService.ts`, ETH/USD
+from CoinGecko, cached 5 min) — shows `$?` if the price fetch fails, never
+a wrong number.
 
 From then on, **any purchase by a wallet belonging to that cluster on a
 freshly-launched token** fires an immediate, separate Telegram alert

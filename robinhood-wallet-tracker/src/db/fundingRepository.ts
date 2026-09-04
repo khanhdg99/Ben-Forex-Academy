@@ -1,6 +1,7 @@
 import type { Address } from "viem";
 import { prisma } from "./prisma.js";
 import { env } from "../config/env.js";
+import { getEthUsdPrice, weiToUsd } from "../chain/priceService.js";
 
 export async function recordFundingTransfer(params: {
   from: Address;
@@ -89,10 +90,14 @@ export async function listClusterMembers(sourceAddress: string) {
   });
   const walletByAddress = new Map(wallets.map((w) => [w.address, w]));
 
+  const ethUsdPrice = await getEthUsdPrice();
+
   return rows.map((r) => ({
     address: r.toAddress,
     fundedAt: r.occurredAt,
     txHash: r.txHash,
+    valueWei: r.valueWei,
+    valueUsd: ethUsdPrice !== null ? weiToUsd(r.valueWei, ethUsdPrice) : null,
     checked: walletByAddress.get(r.toAddress)?.checked ?? false,
     starred: walletByAddress.get(r.toAddress)?.starred ?? false,
     latestRiskScore: walletByAddress.get(r.toAddress)?.latestRiskScore ?? 0,

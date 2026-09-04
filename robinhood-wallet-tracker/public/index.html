@@ -530,7 +530,8 @@ async function populateClusterBody(source, bodyId) {
       <div class="cc-member-row ${m.checked ? "is-checked" : ""} ${m.starred ? "is-starred" : ""}">
         <span class="cell-actions">${checkbox(m.checked, m.address)}${starButton(m.starred, m.address)}</span>
         ${addrLink(m.address)}
-        <span style="margin-left:auto;color:var(--muted-2);font-size:11px">${fmtTime(m.fundedAt)}</span>
+        <span style="margin-left:auto;color:var(--green);font-size:11px;font-weight:600">${formatUsd(m.valueUsd)}</span>
+        <span style="color:var(--muted-2);font-size:11px;min-width:120px;text-align:right">${fmtTime(m.fundedAt)}</span>
       </div>
     `).join("");
   } catch (err) {
@@ -551,37 +552,51 @@ async function toggleClusterCard(source, bodyId) {
   await populateClusterBody(source, bodyId);
 }
 
+// Signature of the last-rendered cluster list (source+count+updatedAt per
+// cluster). When a refresh sees the same signature, the outer grid is left
+// completely untouched — no rebuild, no risk of disturbing an open card —
+// only the currently-open cards' member lists get refreshed in place.
+let lastClustersSignature = "";
+
 async function loadClusters() {
   const clusters = await fetchJson("/api/clusters");
   document.getElementById("clusters-count").textContent = clusters.length;
   const grid = document.getElementById("clusters-grid");
-  if (clusters.length === 0) {
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Chưa phát hiện cụm ví nào</div>`;
-    return;
-  }
-  grid.innerHTML = clusters.map((c) => {
-    const bodyId = clusterBodyId(c.sourceAddress);
-    const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
-    return `
-      <div class="cluster-card" id="cluster-card-${c.sourceAddress.toLowerCase()}">
-        <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
-          <div>
-            ${addrLink(c.sourceAddress)}
-            <div class="cc-meta">
-              <span>Phát hiện ${fmtTime(c.firstDetectedAt)}</span>
-              <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
-            </div>
-          </div>
-          <span class="cc-badge">${c.walletCount} ví con</span>
-        </div>
-        <div class="cc-members" id="${bodyId}" style="display:${isOpen ? "block" : "none"}"></div>
-      </div>
-    `;
-  }).join("");
 
-  // Re-populate any cards that were already open before this refresh —
-  // the grid HTML above always renders fresh, so the content needs
-  // re-filling even though the "open" display state was preserved.
+  const signature = clusters.map((c) => `${c.sourceAddress}:${c.walletCount}:${c.lastUpdatedAt}`).join("|");
+  const structureChanged = signature !== lastClustersSignature || grid.children.length === 0;
+
+  if (structureChanged) {
+    lastClustersSignature = signature;
+
+    if (clusters.length === 0) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Chưa phát hiện cụm ví nào</div>`;
+    } else {
+      grid.innerHTML = clusters.map((c) => {
+        const bodyId = clusterBodyId(c.sourceAddress);
+        const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
+        return `
+          <div class="cluster-card" id="cluster-card-${c.sourceAddress.toLowerCase()}">
+            <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
+              <div>
+                ${addrLink(c.sourceAddress)}
+                <div class="cc-meta">
+                  <span>Phát hiện ${fmtTime(c.firstDetectedAt)}</span>
+                  <span>Cập nhật ${fmtTime(c.lastUpdatedAt)}</span>
+                </div>
+              </div>
+              <span class="cc-badge">${c.walletCount} ví con</span>
+            </div>
+            <div class="cc-members" id="${bodyId}" style="display:${isOpen ? "block" : "none"}"></div>
+          </div>
+        `;
+      }).join("");
+    }
+  }
+
+  // Always keep already-open cards' member lists fresh (checked/starred
+  // state, USD amounts) — this only replaces the inner member-list HTML,
+  // never touches the card's open/closed state, so it can't cause flicker.
   for (const c of clusters) {
     if (expandedClusters.has(c.sourceAddress.toLowerCase())) {
       void populateClusterBody(c.sourceAddress, clusterBodyId(c.sourceAddress));
@@ -700,6 +715,11 @@ async function loadDeployments() {
       </tr>
     `;
   }).join("");
+}
+
+function formatUsd(value) {
+  if (value === null || value === undefined) return "$?";
+  return `$${value.toFixed(3)}`;
 }
 
 function formatAmount(raw, decimals) {
