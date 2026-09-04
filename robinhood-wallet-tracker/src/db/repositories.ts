@@ -35,10 +35,10 @@ export async function setWalletStarred(address: Address, starred: boolean) {
   });
 }
 
-/** All wallets currently starred, newest-starred first. */
+/** All wallets currently starred, newest-starred first — excludes checked (trashed) wallets. */
 export async function listStarredWallets() {
   return prisma.wallet.findMany({
-    where: { starred: true },
+    where: { starred: true, checked: false },
     orderBy: { starredAt: "desc" },
   });
 }

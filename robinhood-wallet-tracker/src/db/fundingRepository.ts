@@ -182,10 +182,11 @@ export async function listClusters() {
   });
   const checkedByAddress = new Map(sourceWallets.map((w) => [w.address, w.checked]));
 
-  return clusters.map((c) => ({
-    ...c,
-    sourceChecked: checkedByAddress.get(c.sourceAddress) ?? false,
-  }));
+  // A checked source has moved to the Trash section (see trashRepository.ts)
+  // — drop it from the main grid rather than showing it dimmed in place.
+  return clusters
+    .filter((c) => !checkedByAddress.get(c.sourceAddress))
+    .map((c) => ({ ...c, sourceChecked: false }));
 }
 
 /** Flips a cluster's "I need to watch this whole group" flag. */
@@ -223,15 +224,18 @@ export async function listClusterMembers(sourceAddress: string) {
     ethUsdPrice = null;
   }
 
-  return rows.map((r) => ({
-    address: r.toAddress,
-    fundedAt: r.occurredAt,
-    txHash: r.txHash,
-    valueWei: r.valueWei,
-    valueUsd: ethUsdPrice !== null ? weiToUsd(r.valueWei, ethUsdPrice) : null,
-    wasFresh: r.toWasFreshWallet,
-    checked: walletByAddress.get(r.toAddress)?.checked ?? false,
-    starred: walletByAddress.get(r.toAddress)?.starred ?? false,
-    latestRiskScore: walletByAddress.get(r.toAddress)?.latestRiskScore ?? 0,
-  }));
+  // Checked members have moved to the Trash section — drop them here too.
+  return rows
+    .filter((r) => !walletByAddress.get(r.toAddress)?.checked)
+    .map((r) => ({
+      address: r.toAddress,
+      fundedAt: r.occurredAt,
+      txHash: r.txHash,
+      valueWei: r.valueWei,
+      valueUsd: ethUsdPrice !== null ? weiToUsd(r.valueWei, ethUsdPrice) : null,
+      wasFresh: r.toWasFreshWallet,
+      checked: false,
+      starred: walletByAddress.get(r.toAddress)?.starred ?? false,
+      latestRiskScore: walletByAddress.get(r.toAddress)?.latestRiskScore ?? 0,
+    }));
 }

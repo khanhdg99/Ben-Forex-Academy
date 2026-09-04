@@ -182,15 +182,28 @@ It shows, refreshing every 5 seconds:
   seen? rug detected?) — click a row to expand the full score breakdown
   (which rules fired and why)
 
-Every wallet row (watchlist, deployments, cluster members, token
+Every wallet row (watchlist, deployments, cluster members/source, token
 investigator results) carries two independent toggles, both persisted to
 Postgres (`Wallet.checked`/`.starred`):
-- ☑ **Đã check** — "I've reviewed this, done with it" — turns the tick
-  **red** once checked (so it stands out as your own mark), dims + strikes
-  through the row; the header's "Ẩn ví đã check" switch hides them entirely
+- ☑ **Đã check** — "I'm done with this, get rid of it": turns the tick
+  **red** and immediately moves the wallet (or, for a cluster card's own
+  checkbox, the whole cluster) into the **🗑 Đã xoá** section — it
+  disappears from its normal list right away. From there it's a real
+  countdown: if you don't un-check it (the "Khôi phục" button in that
+  section) within **3 days**, it's **permanently deleted** from the
+  database — the wallet row itself, every token it deployed and all of
+  that token's liquidity/swap/score events, its watchlist entry, and its
+  fan-out cluster row if it was a cluster source. This is irreversible, so
+  only check something once you're actually done looking at it. (Raw
+  on-chain `FundingTransfer` records mentioning the address are left
+  alone — that's chain history, not wallet bookkeeping.) The cleanup runs
+  hourly (`src/db/trashRepository.ts`), plus once immediately on startup
+  to catch up on anything that expired while the bot wasn't running.
 - ⭐ **Quan trọng** — "keep an eye on this one" — highlights the row and
   adds it to the dedicated Ví quan trọng section above, so starred wallets
-  stay easy to find no matter which table they came from
+  stay easy to find no matter which table they came from. Checking a
+  starred wallet still moves it to Trash — starring only means "important
+  while it's still around," it doesn't protect against the 3-day timer.
 
 Every address shown anywhere on the dashboard links out to its
 **Zerion** wallet-overview page (`https://app.zerion.io/<address>/overview`)

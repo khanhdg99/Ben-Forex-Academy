@@ -3,6 +3,7 @@ import { startWorker } from "./queue/worker.js";
 import { startPipeline } from "./pipeline/pipeline.js";
 import { startTelegramBot } from "./alerts/telegram.js";
 import { startWebServer } from "./web/server.js";
+import { startTrashCleanupLoop } from "./db/trashRepository.js";
 import { prisma } from "./db/prisma.js";
 import { redisConnection } from "./queue/queue.js";
 
@@ -13,10 +14,12 @@ async function main() {
   const webServer = startWebServer();
   const worker = startWorker();
   const stopPipeline = startPipeline();
+  const stopTrashCleanup = startTrashCleanupLoop();
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "shutting down...");
     stopPipeline();
+    stopTrashCleanup();
     await new Promise((resolve) => webServer.close(resolve));
     await worker.close();
     await redisConnection.quit();

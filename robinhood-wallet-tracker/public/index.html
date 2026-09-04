@@ -121,8 +121,15 @@
     background: var(--panel-3); border: 1px solid var(--border);
   }
   .section-title .icon-wrap svg { width: 13px; height: 13px; }
+  .section-title .icon-wrap.trash-icon { background: var(--red-dim); border-color: rgba(240,89,106,0.35); color: var(--red); }
   .section-title h2 { font-size: 14.5px; font-weight: 650; margin: 0; letter-spacing: -0.01em; }
   .section-title .desc { color: var(--muted-2); font-size: 11.5px; margin-top: 1px; }
+  .expiry-badge { font-weight: 700; font-size: 11px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .expiry-badge.urgent { background: var(--red-dim); color: var(--red); }
+  .expiry-badge.soon { background: var(--yellow-dim); color: var(--yellow); }
+  .expiry-badge.ok { background: var(--panel-3); color: var(--muted-2); border: 1px solid var(--border); }
+  button.restore { background: var(--green-dim); color: var(--green); border: 1px solid rgba(62,207,142,0.35); border-radius: 8px; padding: 5px 11px; font-size: 11.5px; font-weight: 650; cursor: pointer; }
+  button.restore:hover { background: rgba(62,207,142,0.22); }
   .count-pill { color: var(--muted); font-weight: 600; font-size: 11px; background: var(--panel-3); border: 1px solid var(--border); padding: 2px 9px; border-radius: 999px; }
 
   /* cards */
@@ -270,17 +277,13 @@
         </div>
       </div>
       <div class="header-right">
-        <label class="switch">
-          <input type="checkbox" id="hide-checked-toggle" onchange="onHideCheckedToggle(this.checked)" />
-          <span class="track"></span>
-          Ẩn ví đã check
-        </label>
         <div class="live-status"><span class="dot"></span> Đang theo dõi</div>
       </div>
     </div>
     <nav class="subnav">
       <a href="#investigate">Kiểm tra token</a>
       <a href="#starred">⭐ Ví quan trọng</a>
+      <a href="#trash">🗑 Đã xoá</a>
       <a href="#clusters">Cụm ví</a>
       <a href="#watchlist">Watchlist</a>
       <a href="#deployments">Deployments</a>
@@ -330,6 +333,25 @@
       <div class="table-wrap">
         <table id="starred-table">
           <thead><tr><th style="width:36px"></th><th>Wallet</th><th>Score</th><th>Đã check?</th><th>Đánh dấu lúc</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="trash">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap trash-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></div>
+          <div>
+            <h2>🗑 Đã xoá</h2>
+            <div class="desc">Ví/cụm ví bạn đã tick — tự động xoá vĩnh viễn khỏi database sau 3 ngày nếu không bỏ tick</div>
+          </div>
+        </div>
+        <span class="count-pill" id="trash-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table id="trash-table">
+          <thead><tr><th>Wallet</th><th>Loại</th><th>Đã tick lúc</th><th>Còn lại</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -405,15 +427,6 @@ const CHECK_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="#0b0e17" stroke
 const explorer = (addr) => `https://app.zerion.io/${addr}/overview`;
 const short = (addr) => addr ? addr.slice(0, 6) + "…" + addr.slice(-4) : "–";
 const fmtTime = (iso) => iso ? new Date(iso).toLocaleString("vi-VN") : "–";
-
-let hideChecked = false;
-try { hideChecked = localStorage.getItem("hideChecked") === "1"; } catch (e) {}
-
-function onHideCheckedToggle(checked) {
-  hideChecked = checked;
-  try { localStorage.setItem("hideChecked", checked ? "1" : "0"); } catch (e) {}
-  refresh();
-}
 
 function ringColor(score) {
   if (score >= 80) return "var(--red)";
@@ -565,13 +578,13 @@ async function populateClusterBody(source, bodyId) {
   if (!body) return;
   body.innerHTML = `<div class="cc-member-row"><span class="empty" style="padding:14px">đang tải...</span></div>`;
   try {
+    // Server already excludes checked members (moved to Trash — see loadTrash()).
     const members = await fetchJson(`/api/clusters/${source}/members`);
-    const visible = hideChecked ? members.filter((m) => !m.checked) : members;
-    if (visible.length === 0) {
-      body.innerHTML = `<div class="empty">Không có ví con${hideChecked ? " (còn lại sau khi ẩn ví đã check)" : ""}</div>`;
+    if (members.length === 0) {
+      body.innerHTML = `<div class="empty">Không có ví con</div>`;
       return;
     }
-    body.innerHTML = visible.map((m) => `
+    body.innerHTML = members.map((m) => `
       <div class="cc-member-row ${m.checked ? "is-checked" : ""} ${m.starred ? "is-starred" : ""}">
         <span class="cell-actions">${checkbox(m.checked, m.address)}${starButton(m.starred, m.address)}</span>
         ${addrLink(m.address)}
@@ -709,8 +722,8 @@ async function removeWatch(address) {
 let lastWatchlistSignature = "";
 
 async function loadWatchlist() {
-  let entries = await fetchJson("/api/watchlist");
-  if (hideChecked) entries = entries.filter((e) => !e.wallet.checked);
+  // Server already excludes checked wallets (moved to Trash — see loadTrash()).
+  const entries = await fetchJson("/api/watchlist");
   document.getElementById("watchlist-count").textContent = entries.length;
   const tbody = document.querySelector("#watchlist-table tbody");
 
@@ -747,8 +760,8 @@ function breakdownHtml(log) {
 let lastDeploymentsSignature = "";
 
 async function loadDeployments() {
-  let deployments = await fetchJson("/api/deployments?limit=100");
-  if (hideChecked) deployments = deployments.filter((d) => !d.deployer.checked);
+  // Server already excludes checked deployers (moved to Trash — see loadTrash()).
+  const deployments = await fetchJson("/api/deployments?limit=100");
   document.getElementById("deployments-count").textContent = deployments.length;
   const tbody = document.querySelector("#deployments-table tbody");
 
@@ -889,10 +902,46 @@ document.getElementById("investigate-input").addEventListener("keydown", (e) => 
   if (e.key === "Enter") runInvestigation();
 });
 
+function expiryBadge(expiresAt) {
+  const daysLeft = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (daysLeft <= 0) return { cls: "urgent", label: "Sắp xoá" };
+  if (daysLeft === 1) return { cls: "urgent", label: "Còn 1 ngày" };
+  if (daysLeft === 2) return { cls: "soon", label: "Còn 2 ngày" };
+  return { cls: "ok", label: `Còn ${daysLeft} ngày` };
+}
+
+let lastTrashSignature = "";
+
+async function loadTrash() {
+  const wallets = await fetchJson("/api/trash");
+  document.getElementById("trash-count").textContent = wallets.length;
+  const tbody = document.querySelector("#trash-table tbody");
+
+  const signature = wallets.map((w) => `${w.address}:${w.checkedAt}`).join("|");
+  if (signature === lastTrashSignature && tbody.children.length > 0) return;
+  lastTrashSignature = signature;
+
+  if (wallets.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">Thùng rác trống — tick ví/cụm ví "đã check" để đưa vào đây</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = wallets.map((w) => {
+    const badge = expiryBadge(w.expiresAt);
+    return `
+      <tr>
+        <td>${addrLink(w.address)}</td>
+        <td>${w.isClusterSource ? `Cụm ví (${w.clusterWalletCount} ví con)` : "Ví lẻ"}</td>
+        <td>${fmtTime(w.checkedAt)}</td>
+        <td><span class="expiry-badge ${badge.cls}">${badge.label}</span></td>
+        <td><button class="restore" onclick="toggleChecked('${w.address}', false)">Khôi phục</button></td>
+      </tr>
+    `;
+  }).join("");
+}
+
 async function refresh() {
   try {
-    document.getElementById("hide-checked-toggle").checked = hideChecked;
-    await Promise.all([loadStats(), loadStarred(), loadClusters(), loadWatchlist(), loadDeployments()]);
+    await Promise.all([loadStats(), loadStarred(), loadTrash(), loadClusters(), loadWatchlist(), loadDeployments()]);
     document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
   } catch (err) {
     document.getElementById("meta").textContent = "lỗi tải dữ liệu — bot/API có đang chạy không?";

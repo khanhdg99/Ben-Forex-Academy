@@ -13,6 +13,7 @@ import {
   setClusterStarred,
 } from "../db/fundingRepository.js";
 import { setWalletChecked, setWalletStarred, listStarredWallets } from "../db/repositories.js";
+import { listTrashWallets, startTrashCleanupLoop } from "../db/trashRepository.js";
 import { investigateToken } from "../investigation/tokenInvestigator.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -54,7 +55,10 @@ export function startWebServer() {
   });
 
   app.get("/api/watchlist", async (_req, res) => {
+    // Checked wallets have moved to the Trash section — exclude them here
+    // instead of showing them dimmed in place.
     const entries = await prisma.watchlistEntry.findMany({
+      where: { wallet: { checked: false } },
       include: { wallet: true },
       orderBy: { addedAt: "desc" },
       take: 200,
@@ -69,7 +73,10 @@ export function startWebServer() {
 
   app.get("/api/deployments", async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
+    // Checked deployers have moved to the Trash section — exclude their
+    // deployments here instead of showing them dimmed in place.
     const deployments = await prisma.tokenDeployment.findMany({
+      where: { deployer: { checked: false } },
       include: {
         deployer: true,
         liquidityEvents: { orderBy: { occurredAt: "asc" } },
@@ -138,6 +145,16 @@ export function startWebServer() {
     res.json(toJson(wallets));
   });
 
+  app.get("/api/trash", async (_req, res) => {
+    try {
+      const wallets = await listTrashWallets();
+      res.json(toJson(wallets));
+    } catch (err) {
+      logger.error({ err }, "failed to list trash");
+      res.status(500).json({ error: "failed to list trash" });
+    }
+  });
+
   app.post("/api/investigate", async (req, res) => {
     const tokenAddress = req.body?.tokenAddress;
     if (typeof tokenAddress !== "string" || !isAddress(tokenAddress)) {
@@ -195,4 +212,7 @@ export function startWebServer() {
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   startWebServer();
+  // src/index.ts starts this loop itself when running the full bot; only
+  // start it here too so dashboard-only (`npm run web`) mode still purges.
+  startTrashCleanupLoop();
 }
