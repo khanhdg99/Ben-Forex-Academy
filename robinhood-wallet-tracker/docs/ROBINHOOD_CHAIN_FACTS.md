@@ -7,6 +7,21 @@ not a first-hand fetch of the primary source. **Re-verify every value here
 against the official docs before depending on it for anything
 production-critical.**
 
+## Live-tested (2026-09-04, from a real Mac, not the sandbox)
+
+- **`RPC_HTTP_URL=https://rpc.mainnet.chain.robinhood.com` works.**
+  `npm run step1:test-connection` returned `chainId: 4663` and a real,
+  advancing block number (~54,005,867 at test time) over plain HTTPS. This
+  confirms the chain ID and public HTTP RPC facts below firsthand.
+- **`wss://rpc.mainnet.chain.robinhood.com` (same host, WS scheme) does
+  NOT work.** The WebSocket connection fails immediately with a socket
+  close error. Whether the public endpoint doesn't expose WS at all, or
+  needs a different path, wasn't determined — treat the public RPC as
+  **HTTP-only**. The bot now defaults to HTTP polling (`POLL_INTERVAL_MS`,
+  1s default) when `RPC_WS_URL` is left blank, which needs no API key and
+  works against this endpoint as-is. Real push-based WebSocket (lower
+  latency) still requires a provider like Alchemy.
+
 ## Network
 
 | Field | Value | Source |

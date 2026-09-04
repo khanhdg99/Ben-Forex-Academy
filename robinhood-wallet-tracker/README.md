@@ -95,16 +95,22 @@ npm run step1:test-connection
 ```
 
 Should print the chain ID, current block number, and then stream new blocks
-as they land. **This is the step you need to run in an environment with real
-network access** — this bot was scaffolded in a sandbox whose egress policy
-blocks the RPC/explorer hosts, so the connection itself has not been
-live-tested here.
+as they land — **live-tested and confirmed working** against the public RPC
+(`RPC_HTTP_URL=https://rpc.mainnet.chain.robinhood.com`, chain ID `4663`).
+
+No API key is required by default: leave `RPC_WS_URL` blank in `.env` and
+the bot polls over HTTP every `POLL_INTERVAL_MS` (1s default) instead of
+using a WebSocket push subscription — fine for an alert-only bot with no
+gas bidding. The public endpoint's WebSocket
+(`wss://rpc.mainnet.chain.robinhood.com`) was tested and does **not** work,
+so don't set `RPC_WS_URL` to that. If you want true real-time push instead
+of ~1s polling latency, sign up for [Alchemy](https://www.alchemy.com/rpc/robinhood)
+(confirmed to support Robinhood Chain) and set both `RPC_HTTP_URL` and
+`RPC_WS_URL` to your Alchemy app's endpoints instead — see the comments in
+`.env.example`.
 
 If it fails or the chain ID doesn't match `4663`, double-check
-`RPC_HTTP_URL`/`RPC_WS_URL` in `.env` against
-https://docs.robinhood.com/chain/connecting — the public RPC
-(`rpc.mainnet.chain.robinhood.com`) is rate-limited, so switch to Alchemy
-(confirmed to support Robinhood Chain) for anything beyond quick testing.
+`RPC_HTTP_URL` in `.env` against https://docs.robinhood.com/chain/connecting.
 
 ### Step 2 — watch deployments + pool creations
 
@@ -204,9 +210,11 @@ sequencer is first-come-first-served, so the only latency lever here is
 
 ## Known limitations / next steps (step 6 and beyond)
 
-- **Not live-tested against the real chain** — built and typechecked in a
-  sandbox that couldn't reach Robinhood Chain's RPC/explorer. Run Step 1
-  first in a real environment before trusting anything downstream.
+- **Step 1 (HTTP RPC connectivity) is live-tested and confirmed working**
+  against the public RPC — chain ID `4663`, real block numbers. Steps 2+
+  (deployment/pool detection against real chain activity) still haven't
+  been observed end-to-end against live traffic — run Step 2 and watch for
+  real events before trusting the full pipeline.
 - **Uniswap factory addresses unconfirmed** — see
   `docs/ROBINHOOD_CHAIN_FACTS.md`. The signature-based watcher is a
   reasonable stopgap but will also catch non-Uniswap forks.

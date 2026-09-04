@@ -4,7 +4,10 @@ import { z } from "zod";
 const envSchema = z.object({
   CHAIN_ID: z.coerce.number().default(4663),
   RPC_HTTP_URL: z.string().url(),
-  RPC_WS_URL: z.string().url(),
+  // Optional: leave blank to fall back to HTTP polling (no API key needed).
+  RPC_WS_URL: z.union([z.string().url(), z.literal("")]).optional().default(""),
+  // How often to poll over HTTP when RPC_WS_URL isn't set.
+  POLL_INTERVAL_MS: z.coerce.number().default(1000),
   BLOCKSCOUT_API_BASE: z.string().url().default("https://robinhoodchain.blockscout.com/api/v2"),
 
   UNISWAP_V2_FACTORY: z.string().optional().default(""),
