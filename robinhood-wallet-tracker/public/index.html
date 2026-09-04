@@ -336,6 +336,11 @@
         </div>
         <span class="count-pill" id="clusters-count">0</span>
       </div>
+      <div class="investigate-form" style="margin-bottom:14px">
+        <input id="cluster-lookup-input" type="text" placeholder="Dán địa chỉ ví con vào đây để tìm nó thuộc cụm nào..." />
+        <button id="cluster-lookup-btn" onclick="lookupWalletCluster()">Tìm cụm</button>
+      </div>
+      <div class="investigate-meta" id="cluster-lookup-meta"></div>
       <div class="card-grid" id="clusters-grid"></div>
     </section>
 
@@ -501,11 +506,18 @@ async function loadStarred() {
   `).join("");
 }
 
-async function toggleClusterCard(source, bodyId, chevronId) {
+// Cluster sources whose member list is currently expanded — kept across
+// the 5s auto-refresh so opening a card doesn't get silently closed again
+// the next time loadClusters() re-renders the grid.
+const expandedClusters = new Set();
+
+function clusterBodyId(source) {
+  return `cc-body-${source.toLowerCase()}`;
+}
+
+async function populateClusterBody(source, bodyId) {
   const body = document.getElementById(bodyId);
-  const isOpen = body.style.display === "block";
-  body.style.display = isOpen ? "none" : "block";
-  if (isOpen) return;
+  if (!body) return;
   body.innerHTML = `<div class="cc-member-row"><span class="empty" style="padding:14px">đang tải...</span></div>`;
   try {
     const members = await fetchJson(`/api/clusters/${source}/members`);
@@ -526,6 +538,19 @@ async function toggleClusterCard(source, bodyId, chevronId) {
   }
 }
 
+async function toggleClusterCard(source, bodyId) {
+  const body = document.getElementById(bodyId);
+  const isOpen = body.style.display === "block";
+  if (isOpen) {
+    body.style.display = "none";
+    expandedClusters.delete(source.toLowerCase());
+    return;
+  }
+  body.style.display = "block";
+  expandedClusters.add(source.toLowerCase());
+  await populateClusterBody(source, bodyId);
+}
+
 async function loadClusters() {
   const clusters = await fetchJson("/api/clusters");
   document.getElementById("clusters-count").textContent = clusters.length;
@@ -534,10 +559,11 @@ async function loadClusters() {
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1">Chưa phát hiện cụm ví nào</div>`;
     return;
   }
-  grid.innerHTML = clusters.map((c, i) => {
-    const bodyId = `cc-body-${i}`;
+  grid.innerHTML = clusters.map((c) => {
+    const bodyId = clusterBodyId(c.sourceAddress);
+    const isOpen = expandedClusters.has(c.sourceAddress.toLowerCase());
     return `
-      <div class="cluster-card">
+      <div class="cluster-card" id="cluster-card-${c.sourceAddress.toLowerCase()}">
         <div class="cc-head" onclick="toggleClusterCard('${c.sourceAddress}', '${bodyId}')">
           <div>
             ${addrLink(c.sourceAddress)}
@@ -548,11 +574,63 @@ async function loadClusters() {
           </div>
           <span class="cc-badge">${c.walletCount} ví con</span>
         </div>
-        <div class="cc-members" id="${bodyId}" style="display:none"></div>
+        <div class="cc-members" id="${bodyId}" style="display:${isOpen ? "block" : "none"}"></div>
       </div>
     `;
   }).join("");
+
+  // Re-populate any cards that were already open before this refresh —
+  // the grid HTML above always renders fresh, so the content needs
+  // re-filling even though the "open" display state was preserved.
+  for (const c of clusters) {
+    if (expandedClusters.has(c.sourceAddress.toLowerCase())) {
+      void populateClusterBody(c.sourceAddress, clusterBodyId(c.sourceAddress));
+    }
+  }
 }
+
+async function lookupWalletCluster() {
+  const input = document.getElementById("cluster-lookup-input");
+  const meta = document.getElementById("cluster-lookup-meta");
+  const address = input.value.trim();
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    meta.textContent = "Địa chỉ ví không hợp lệ.";
+    return;
+  }
+
+  meta.textContent = "Đang tìm...";
+  try {
+    const { cluster } = await fetchJson(`/api/wallets/${address}/cluster`);
+    if (!cluster) {
+      meta.textContent = `Ví ${short(address)} chưa thuộc cụm ví nghi vấn nào đã biết.`;
+      return;
+    }
+
+    meta.innerHTML = `Ví ${short(address)} thuộc cụm nguồn ${addrLink(cluster.sourceAddress)} (${cluster.walletCount} ví con) — đã mở bên dưới.`;
+
+    const bodyId = clusterBodyId(cluster.sourceAddress);
+    expandedClusters.add(cluster.sourceAddress.toLowerCase());
+    const body = document.getElementById(bodyId);
+    if (body) {
+      body.style.display = "block";
+      await populateClusterBody(cluster.sourceAddress, bodyId);
+      const card = document.getElementById(`cluster-card-${cluster.sourceAddress.toLowerCase()}`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.style.outline = "2px solid var(--accent)";
+        setTimeout(() => { card.style.outline = "none"; }, 2500);
+      }
+    }
+  } catch (err) {
+    meta.textContent = "Lỗi khi tra cứu.";
+    console.error(err);
+  }
+}
+
+document.getElementById("cluster-lookup-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") lookupWalletCluster();
+});
 
 async function removeWatch(address) {
   await fetch(`/api/watchlist/${address}`, { method: "DELETE" });

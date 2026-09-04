@@ -216,6 +216,10 @@ wallets to buy a new listing. When a single funding source has funded
 `FANOUT_MIN_WALLETS` (default 3) or more fresh wallets within
 `FANOUT_WINDOW_MINUTES` (default 60), it's flagged as a **cluster** and shown
 in the dashboard's "Cụm ví nghi vấn" section and via a Telegram alert.
+Cluster cards stay expanded across the dashboard's 5s auto-refresh once
+opened. Forgot which cluster a wallet belonged to? Paste its address into
+the small lookup box above the cluster list — it finds and auto-opens the
+matching cluster card for you.
 
 From then on, **any purchase by a wallet belonging to that cluster on a
 freshly-launched token** fires an immediate, separate Telegram alert

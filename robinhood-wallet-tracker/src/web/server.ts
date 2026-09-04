@@ -6,7 +6,7 @@ import { prisma } from "../db/prisma.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
 import { removeFromWatchlist } from "../watchlist/watchlistManager.js";
-import { listClusters, listClusterMembers } from "../db/fundingRepository.js";
+import { listClusters, listClusterMembers, findClusterForWallet } from "../db/fundingRepository.js";
 import { setWalletChecked, setWalletStarred, listStarredWallets } from "../db/repositories.js";
 import { investigateToken } from "../investigation/tokenInvestigator.js";
 
@@ -84,6 +84,15 @@ export function startWebServer() {
   app.get("/api/clusters/:source/members", async (req, res) => {
     const members = await listClusterMembers(req.params.source);
     res.json(toJson(members));
+  });
+
+  app.get("/api/wallets/:address/cluster", async (req, res) => {
+    if (!isAddress(req.params.address)) {
+      res.status(400).json({ error: "invalid address" });
+      return;
+    }
+    const cluster = await findClusterForWallet(req.params.address as `0x${string}`);
+    res.json({ cluster: cluster ? toJson(cluster) : null });
   });
 
   app.put("/api/wallets/:address/checked", async (req, res) => {
