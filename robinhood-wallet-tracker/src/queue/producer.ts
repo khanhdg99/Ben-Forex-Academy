@@ -5,6 +5,7 @@ import type {
   InitialBuyJobData,
   RugJobData,
   FundingTransferJobData,
+  PonsLaunchJobData,
 } from "./types.js";
 
 export const enqueueDeployment = (data: DeploymentJobData) =>
@@ -20,3 +21,6 @@ export const enqueueRug = (data: RugJobData) => chainEventsQueue.add("rug", data
 
 export const enqueueFundingTransfer = (data: FundingTransferJobData) =>
   chainEventsQueue.add("funding-transfer", data);
+
+export const enqueuePonsLaunch = (data: PonsLaunchJobData) =>
+  chainEventsQueue.add("pons-launch", data);

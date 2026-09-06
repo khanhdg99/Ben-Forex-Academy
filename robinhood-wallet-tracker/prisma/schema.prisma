@@ -58,6 +58,17 @@ model TokenDeployment {
   /// nobody cared about.
   savedForWatch  Boolean  @default(false)
   savedAt        DateTime?
+  /// Launched via Pons (the dominant launchpad on Robinhood Chain —
+  /// ~10% of chain transactions) rather than a raw/unknown deploy. Only
+  /// Pons launches carry verified on-chain social links (read from the
+  /// token's own getTokenInfo()), so the >=2-of-3 social filter only
+  /// applies to these — other deployments have no social data to check.
+  isPonsLaunch   Boolean  @default(false)
+  twitterUrl     String?
+  telegramUrl    String?
+  websiteUrl     String?
+  discordUrl     String?
+  farcasterUrl   String?
 
   liquidityEvents LiquidityEvent[]
   swapEvents      SwapEvent[]

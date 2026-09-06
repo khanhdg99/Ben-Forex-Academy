@@ -6,8 +6,10 @@ import {
   countFundingSourceReuse,
   getWalletHistory,
   saveRiskScore,
+  recordPonsLaunch,
 } from "../db/repositories.js";
 import { findFundingSource } from "../chain/blockscoutClient.js";
+import { getPonsTokenInfo } from "../chain/ponsClient.js";
 import { isFreshWallet } from "../chain/walletFreshness.js";
 import { scoreDeploymentCase } from "../detection/scoring.js";
 import type { DeploymentCase } from "../detection/types.js";
@@ -32,6 +34,7 @@ import type {
   InitialBuyJobData,
   RugJobData,
   FundingTransferJobData,
+  PonsLaunchJobData,
 } from "../queue/types.js";
 import { prisma } from "../db/prisma.js";
 
@@ -147,6 +150,30 @@ export async function handleDeployment(data: DeploymentJobData) {
       fundedAt: funding.fundedAt,
     });
   }
+
+  await rescoreAndNotify(tokenAddress);
+}
+
+/**
+ * A token launched through Pons — the dominant memecoin launchpad on
+ * Robinhood Chain. Reads the token's own creator-supplied social links
+ * (getTokenInfo()) so the dashboard's >=2-of-3 (X/website/Telegram) filter
+ * has real data to check, rather than relying on the generic
+ * bytecode-signature deployment detector, which has no way to know this.
+ */
+export async function handlePonsLaunch(data: PonsLaunchJobData) {
+  const tokenAddress = data.tokenAddress as Address;
+  const deployer = data.deployer as Address;
+
+  const info = await getPonsTokenInfo(tokenAddress);
+
+  await recordPonsLaunch({
+    tokenAddress,
+    deployerAddress: deployer,
+    deployTxHash: data.txHash,
+    deployedAt: new Date(data.deployedAtIso),
+    socials: info?.socials ?? null,
+  });
 
   await rescoreAndNotify(tokenAddress);
 }

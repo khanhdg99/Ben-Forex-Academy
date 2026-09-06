@@ -45,4 +45,19 @@ export interface FundingTransferJobData {
   occurredAtIso: string;
 }
 
-export type JobName = "deployment" | "pool-created" | "initial-buy" | "rug" | "funding-transfer";
+export interface PonsLaunchJobData {
+  tokenAddress: string;
+  deployer: string;
+  curve: string;
+  pairToken: string;
+  txHash: string;
+  deployedAtIso: string;
+}
+
+export type JobName =
+  | "deployment"
+  | "pool-created"
+  | "initial-buy"
+  | "rug"
+  | "funding-transfer"
+  | "pons-launch";

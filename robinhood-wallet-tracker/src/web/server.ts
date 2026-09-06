@@ -82,7 +82,9 @@ export function startWebServer() {
   app.get("/api/deployments", async (req, res) => {
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     // Checked deployers have moved to the Trash section — exclude their
-    // deployments here instead of showing them dimmed in place.
+    // deployments here instead of showing them dimmed in place. Overfetch
+    // a bit since the >=2-of-3 social filter below (Pons launches only)
+    // drops some rows before the final slice to `limit`.
     const deployments = await prisma.tokenDeployment.findMany({
       where: { deployer: { checked: false } },
       include: {
@@ -91,9 +93,19 @@ export function startWebServer() {
         scoreLogs: { orderBy: { computedAt: "desc" }, take: 1 },
       },
       orderBy: { deployedAt: "desc" },
-      take: limit,
+      take: limit * 2,
     });
-    res.json(toJson(deployments));
+    // Only Pons launches have verified on-chain social links to check at
+    // all — everything else (generic bytecode-detected deployments) has no
+    // social data one way or the other, so it isn't held to this filter.
+    const filtered = deployments
+      .filter((d) => {
+        if (!d.isPonsLaunch) return true;
+        const socialCount = [d.twitterUrl, d.websiteUrl, d.telegramUrl].filter(Boolean).length;
+        return socialCount >= 2;
+      })
+      .slice(0, limit);
+    res.json(toJson(filtered));
   });
 
   app.get("/api/clusters", async (_req, res) => {

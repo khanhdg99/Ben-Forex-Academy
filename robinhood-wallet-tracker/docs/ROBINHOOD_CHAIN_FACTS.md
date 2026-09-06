@@ -69,6 +69,30 @@ the pool-creation watcher matches on the `PairCreated`/`PoolCreated` event
 without knowing the address, at the cost of also picking up any other
 Uniswap-shaped fork/clone deployed on the chain.
 
+## Pons Launchpad — confirmed dominant memecoin launchpad
+
+Cross-validated via web search + a direct fetch of the official GitHub source
+(`github.com` was reachable from the sandbox even though the chain's own docs
+site was not).
+
+| Field | Value | Source |
+|---|---|---|
+| Role | Dominant memecoin launchpad on Robinhood Chain — reported ~10% of all chain transactions, 167,000+ tokens launched | Search snippets citing on-chain analytics |
+| Official repo | `github.com/ponsdotdev/ponsfamily` | Direct fetch |
+| V2 factory contract | `PonsV2LaunchFactory` at `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` | `ponsfamily` repo source |
+| V1 factory contract | `0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB` | `ponsfamily` repo source |
+| Launch event | `TokenLaunched(address indexed token, address indexed curve, address indexed deployer, address pairToken, uint256 launchConfigId, uint256 graduationThreshold)` | `ponsfamily` repo source |
+| Token contract | `PonsV2LauncherToken` | `ponsfamily` repo source |
+| Social-link read | `getTokenInfo() external view returns (address tokenDeployer, string tokenLogo, string tokenDescription, Socials tokenSocials)` and `socials() external view returns (string twitter, string telegram, string discord, string website, string farcaster)` on the launched token itself | `ponsfamily` repo source |
+
+This is the bot's real, verified data source for the dashboard's "≥2-of-3
+social links" filter on `TokenDeployment` — `src/chain/ponsClient.ts` watches
+`TokenLaunched` on the V2 factory and reads `socials()` off each launched
+token. Only Pons-launched tokens carry this data; generic bytecode-detected
+deployments (non-Pons) have no social info one way or the other and are not
+held to the filter. The V1 factory is not currently watched (V2 is the
+active one per the repo); revisit if V1 launches turn out to still be common.
+
 ## Memecoin activity — premise confirmed
 
 This is the most important finding: **the premise of this bot is validated**.

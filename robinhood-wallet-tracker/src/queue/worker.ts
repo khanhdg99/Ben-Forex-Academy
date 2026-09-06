@@ -7,6 +7,7 @@ import {
   handleInitialBuy,
   handleRug,
   handleFundingTransfer,
+  handlePonsLaunch,
 } from "../pipeline/handlers.js";
 import type {
   DeploymentJobData,
@@ -14,6 +15,7 @@ import type {
   InitialBuyJobData,
   RugJobData,
   FundingTransferJobData,
+  PonsLaunchJobData,
 } from "./types.js";
 
 export function startWorker() {
@@ -31,6 +33,8 @@ export function startWorker() {
           return handleRug(job.data as RugJobData);
         case "funding-transfer":
           return handleFundingTransfer(job.data as FundingTransferJobData);
+        case "pons-launch":
+          return handlePonsLaunch(job.data as PonsLaunchJobData);
         default:
           logger.warn({ jobName: job.name }, "unknown job type");
       }

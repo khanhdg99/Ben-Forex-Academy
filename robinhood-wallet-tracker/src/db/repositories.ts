@@ -81,6 +81,44 @@ export async function listSavedDeployments() {
   });
 }
 
+/**
+ * Records (or enriches an already-tracked) token as a Pons launch, with its
+ * creator-supplied social links. `socials` is null when the on-chain read
+ * failed (still marks it as a Pons launch — just without link data, so it
+ * won't clear the >=2-of-3 filter until/unless a later enrichment succeeds).
+ */
+export async function recordPonsLaunch(params: {
+  tokenAddress: Address;
+  deployerAddress: Address;
+  deployTxHash: string;
+  deployedAt: Date;
+  socials: { twitter: string; telegram: string; discord: string; website: string; farcaster: string } | null;
+}) {
+  await upsertWallet(params.deployerAddress);
+
+  const socialFields = {
+    isPonsLaunch: true,
+    twitterUrl: params.socials?.twitter || null,
+    telegramUrl: params.socials?.telegram || null,
+    discordUrl: params.socials?.discord || null,
+    websiteUrl: params.socials?.website || null,
+    farcasterUrl: params.socials?.farcaster || null,
+  };
+
+  return prisma.tokenDeployment.upsert({
+    where: { tokenAddress: params.tokenAddress.toLowerCase() },
+    create: {
+      tokenAddress: params.tokenAddress.toLowerCase(),
+      deployerAddress: params.deployerAddress.toLowerCase(),
+      deployTxHash: params.deployTxHash,
+      deployedAt: params.deployedAt,
+      looksLikeErc20: true, // Pons-launched tokens are always standard fixed-supply ERC-20s
+      ...socialFields,
+    },
+    update: socialFields,
+  });
+}
+
 export async function recordTokenDeployment(params: {
   tokenAddress: Address;
   deployerAddress: Address;

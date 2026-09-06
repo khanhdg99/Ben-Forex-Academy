@@ -250,6 +250,20 @@
   .tg-btn:hover { color: var(--accent); border-color: var(--accent); background: rgba(124,156,255,0.1); }
   .cell-actions { display: flex; align-items: center; gap: 7px; }
 
+  .social-badges { display: flex; align-items: center; gap: 4px; }
+  .social-badge {
+    display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+    border-radius: 5px; font-size: 11px; text-decoration: none; border: 1px solid var(--border);
+    background: var(--panel-3); color: var(--muted-2); opacity: 0.35; transition: .1s;
+  }
+  .social-badge.has { opacity: 1; color: var(--text); border-color: var(--accent-2); background: rgba(94,209,168,0.1); }
+  .social-badge.has:hover { border-color: var(--accent); color: var(--accent); }
+  .pons-tag {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 5px; font-size: 9.5px;
+    font-weight: 700; letter-spacing: .02em; background: rgba(124,156,255,0.12); color: var(--accent);
+    border: 1px solid rgba(124,156,255,0.35); vertical-align: middle;
+  }
+
   tr.is-starred { background: rgba(224,185,79,0.05); }
   tr.is-starred:hover { background: rgba(224,185,79,0.09) !important; }
   .cc-member-row.is-starred { background: rgba(224,185,79,0.07); }
@@ -454,7 +468,7 @@
           <thead>
             <tr>
               <th style="width:36px"></th><th>Token</th><th>Deployer</th><th>Score</th><th>ERC-20</th>
-              <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Deploy lúc</th><th>Lưu?</th>
+              <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Social</th><th>Deploy lúc</th><th>Lưu?</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -477,7 +491,7 @@
         <table id="savedtokens-table">
           <thead>
             <tr>
-              <th style="width:36px"></th><th>Token</th><th>Deployer</th><th>Score</th><th>Pool</th><th>Rug</th><th>Deploy lúc</th>
+              <th style="width:36px"></th><th>Token</th><th>Deployer</th><th>Score</th><th>Pool</th><th>Rug</th><th>Social</th><th>Deploy lúc</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -524,6 +538,26 @@ function scoreRing(score) {
 }
 function addrLink(addr) {
   return `<a class="addr" href="${explorer(addr)}" target="_blank" rel="noopener">${short(addr)}</a>`;
+}
+/**
+ * Social-link badges (X / website / Telegram) for a token deployment — only
+ * Pons-launched tokens carry real on-chain social data (see docs/ROBINHOOD_CHAIN_FACTS.md),
+ * so this renders nothing for a generic (non-Pons) deployment.
+ */
+function socialBadges(d) {
+  if (!d.isPonsLaunch) return "";
+  const link = (url, icon, title) =>
+    url
+      ? `<a class="social-badge has" href="${url}" target="_blank" rel="noopener" title="${title}">${icon}</a>`
+      : `<span class="social-badge" title="Không có ${title}">${icon}</span>`;
+  return `
+    <div class="social-badges">
+      ${link(d.twitterUrl, "𝕏", "X (Twitter)")}
+      ${link(d.websiteUrl, "🌐", "Website")}
+      ${link(d.telegramUrl, "✈️", "Telegram")}
+      <span class="pons-tag">PONS</span>
+    </div>
+  `;
 }
 function badge(label, on, isRug) {
   return `<span class="badge ${on ? "on" : ""} ${on && isRug ? "rug" : ""}">${label}</span>`;
@@ -971,14 +1005,14 @@ async function loadDeployments() {
   const signature = deployments
     .map((d) => {
       const log = d.scoreLogs && d.scoreLogs[0];
-      return `${d.tokenAddress}:${d.deployer.checked}:${d.deployer.starred}:${d.savedForWatch}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}`;
+      return `${d.tokenAddress}:${d.deployer.checked}:${d.deployer.starred}:${d.savedForWatch}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}:${d.isPonsLaunch}:${d.twitterUrl}:${d.websiteUrl}:${d.telegramUrl}`;
     })
     .join("|");
   if (signature === lastDeploymentsSignature && tbody.children.length > 0) return;
   lastDeploymentsSignature = signature;
 
   if (deployments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">Chưa phát hiện deployment nào</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">Chưa phát hiện deployment nào</td></tr>`;
     return;
   }
   tbody.innerHTML = deployments.map((d, i) => {
@@ -1005,6 +1039,7 @@ async function loadDeployments() {
         <td>${badge("Pool", hasPool)}</td>
         <td>${badge("Buy", hasBuy)}</td>
         <td>${badge(hasRug ? "RUG" : "OK", hasRug, true)}</td>
+        <td>${socialBadges(d)}</td>
         <td>${fmtTime(d.deployedAt)}</td>
         <td onclick="event.stopPropagation()">
           ${d.savedForWatch
@@ -1014,7 +1049,7 @@ async function loadDeployments() {
         </td>
       </tr>
       <tr class="breakdown-row" id="${rowId}" style="display:none">
-        <td colspan="10">${breakdownHtml(log)}</td>
+        <td colspan="11">${breakdownHtml(log)}</td>
       </tr>
     `;
   }).join("");
@@ -1030,14 +1065,14 @@ async function loadSavedTokens() {
   const signature = deployments
     .map((d) => {
       const log = d.scoreLogs && d.scoreLogs[0];
-      return `${d.tokenAddress}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}`;
+      return `${d.tokenAddress}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}:${d.isPonsLaunch}:${d.twitterUrl}:${d.websiteUrl}:${d.telegramUrl}`;
     })
     .join("|");
   if (signature === lastSavedTokensSignature && tbody.children.length > 0) return;
   lastSavedTokensSignature = signature;
 
   if (deployments.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">Chưa lưu token nào — bấm "Lưu" cạnh 1 token trong Deployment gần đây</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">Chưa lưu token nào — bấm "Lưu" cạnh 1 token trong Deployment gần đây</td></tr>`;
     return;
   }
   tbody.innerHTML = deployments.map((d) => {
@@ -1054,6 +1089,7 @@ async function loadSavedTokens() {
         <td>${scoreRing(score)}</td>
         <td>${badge("Pool", hasPool)}</td>
         <td>${badge(hasRug ? "RUG" : "OK", hasRug, true)}</td>
+        <td>${socialBadges(d)}</td>
         <td>${fmtTime(d.deployedAt)}</td>
       </tr>
     `;

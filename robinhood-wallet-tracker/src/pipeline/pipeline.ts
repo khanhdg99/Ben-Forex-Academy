@@ -3,6 +3,7 @@ import { watchContractCreations } from "../chain/contractCreationWatcher.js";
 import { watchPoolCreations } from "../chain/poolCreationWatcher.js";
 import { watchPoolActivity, getReserves } from "../chain/liquidityWatcher.js";
 import { watchValueTransfers } from "../chain/valueTransferWatcher.js";
+import { watchPonsLaunches } from "../chain/ponsClient.js";
 import { httpClient } from "../chain/client.js";
 import {
   enqueueDeployment,
@@ -10,6 +11,7 @@ import {
   enqueueInitialBuy,
   enqueueRug,
   enqueueFundingTransfer,
+  enqueuePonsLaunch,
 } from "../queue/producer.js";
 import { env } from "../config/env.js";
 import { logger } from "../utils/logger.js";
@@ -178,14 +180,26 @@ export function startPipeline() {
     });
   });
 
+  const stopPonsWatcher = watchPonsLaunches((event) => {
+    void enqueuePonsLaunch({
+      tokenAddress: event.tokenAddress,
+      deployer: event.deployer,
+      curve: event.curve,
+      pairToken: event.pairToken,
+      txHash: event.txHash,
+      deployedAtIso: new Date().toISOString(),
+    });
+  });
+
   logger.info(
     { chainId: httpClient.chain?.id },
-    "pipeline started: watching contract creations + pool creations + value transfers",
+    "pipeline started: watching contract creations + pool creations + value transfers + Pons launches",
   );
 
   return () => {
     stopContractWatcher();
     stopPoolWatcher();
     stopValueTransferWatcher();
+    stopPonsWatcher();
   };
 }

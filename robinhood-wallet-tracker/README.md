@@ -221,6 +221,27 @@ send into — so instead it opens Telegram's own documented share dialog
 then you pick your Bloom EVM chat from the list and hit send to start
 copy-trading it.
 
+### Pons Launchpad social-link filter
+
+[**Pons**](https://github.com/ponsdotdev/ponsfamily) is the dominant
+memecoin launchpad on Robinhood Chain (reportedly ~10% of all chain
+transactions, 167,000+ tokens launched — see
+`docs/ROBINHOOD_CHAIN_FACTS.md` for the sourced facts). Its `PonsV2LaunchFactory`
+contract (`0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e`) is watched directly
+(`src/chain/ponsClient.ts`) for `TokenLaunched` events, and each launched
+token exposes its creator-supplied X/website/Telegram links on-chain
+(`socials()`), which is real, verified data rather than a guess.
+
+**Recent deployments only lists a Pons-launched token if it meets at least
+2 of the 3 conditions** — has its own X, has its own website, has its own
+Telegram — since a launch with fewer than that is much more likely to be a
+low-effort/scam token not worth tracking. Deployments detected outside of
+Pons (generic bytecode signature) have no social data one way or the other
+and are shown regardless — the filter only ever *removes* Pons launches, it
+never adds a requirement to non-Pons ones. A qualifying Pons token shows
+𝕏/🌐/✈️ badges in its "Social" column — bright + clickable when that link
+exists, dimmed when it doesn't — plus a small **PONS** tag.
+
 ### Token watch-list — save or lose it in 24h
 
 The reverse of the wallet trash: every new deployment starts a 24-hour
