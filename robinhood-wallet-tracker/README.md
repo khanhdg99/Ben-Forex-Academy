@@ -205,6 +205,27 @@ Postgres (`Wallet.checked`/`.starred`):
   starred wallet still moves it to Trash — starring only means "important
   while it's still around," it doesn't protect against the 24-hour timer.
 
+Cluster cards carry a third toggle in the header, next to the checkbox and
+star: a purple **"D"** button marking the source address as a
+**🧑‍💻 Ví Dev** — a wallet you've personally confirmed is a real dev worth
+following, gathered into its own section (`Wallet.isDevWallet`). Unlike
+starring, this one *does* protect against the trash timer: a dev-flagged
+wallet is skipped by the checked-wallet cleanup even if it's also checked,
+since the whole point is to keep it around for tracking.
+
+### Token watch-list — save or lose it in 24h
+
+The reverse of the wallet trash: every new deployment starts a 24-hour
+countdown from its `deployedAt` (shown as a badge in its "Lưu?" column in
+Deployment gần đây), and if you don't click **Lưu** within that window it's
+**permanently deleted** — the deployment row and all of its
+liquidity/swap/score events. Saved tokens move into the dedicated
+**📌 Token đã lưu** section and stay there indefinitely (no timer) until you
+click **Bỏ lưu**, which restarts nothing — it just removes the saved flag,
+so an old unsaved deployment past its window is simply gone the next
+cleanup pass. Runs on the same hourly loop as the wallet trash cleanup
+(`runTokenCleanup` in `src/db/trashRepository.ts`).
+
 Every address shown anywhere on the dashboard links out to its
 **Zerion** wallet-overview page (`https://app.zerion.io/<address>/overview`)
 so you can eyeball a wallet's balances/activity in one click. Note Zerion

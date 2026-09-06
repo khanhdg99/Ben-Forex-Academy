@@ -6,15 +6,16 @@ import { logger } from "../utils/logger.js";
  * of it" — it moves into the Trash list and, unless unchecked again within
  * this many hours, is permanently deleted (the wallet, its deployments and
  * every event/score tied to those, its watchlist entry, and its fan-out
- * cluster row if it's a cluster source).
+ * cluster row if it's a cluster source). The same window is reused for
+ * unsaved token deployments below.
  */
 const TRASH_RETENTION_HOURS = 24;
 const RETENTION_MS = TRASH_RETENTION_HOURS * 60 * 60 * 1000;
 
-/** Every wallet currently checked ("in trash"), soonest-to-expire first. */
+/** Every wallet currently checked ("in trash"), soonest-to-expire first — dev wallets are exempt (see below), so never listed here. */
 export async function listTrashWallets() {
   const wallets = await prisma.wallet.findMany({
-    where: { checked: true },
+    where: { checked: true, isDevWallet: false },
     orderBy: { checkedAt: "asc" },
   });
   if (wallets.length === 0) return [];
@@ -63,11 +64,17 @@ async function deleteWalletCascade(address: string) {
   ]);
 }
 
-/** Permanently deletes every wallet that's been checked longer than the retention window. Returns how many. */
+/**
+ * Permanently deletes every wallet that's been checked longer than the
+ * retention window. A confirmed dev wallet (isDevWallet) is exempt — that
+ * flag means "keep this one around for tracking," so checking it (e.g. by
+ * mistake, or because it's also being reviewed) never queues it for
+ * deletion. Returns how many were deleted.
+ */
 export async function runTrashCleanup(): Promise<number> {
   const cutoff = new Date(Date.now() - RETENTION_MS);
   const expired = await prisma.wallet.findMany({
-    where: { checked: true, checkedAt: { lte: cutoff } },
+    where: { checked: true, checkedAt: { lte: cutoff }, isDevWallet: false },
     select: { address: true },
   });
 
@@ -82,10 +89,44 @@ export async function runTrashCleanup(): Promise<number> {
   return expired.length;
 }
 
-/** Runs cleanup now (catching up on anything missed while the bot was down), then hourly. */
+async function deleteDeploymentCascade(id: string) {
+  await prisma.$transaction([
+    prisma.liquidityEvent.deleteMany({ where: { tokenDeploymentId: id } }),
+    prisma.swapEvent.deleteMany({ where: { tokenDeploymentId: id } }),
+    prisma.riskScoreLog.deleteMany({ where: { tokenDeploymentId: id } }),
+    prisma.tokenDeployment.delete({ where: { id } }),
+  ]);
+}
+
+/**
+ * Permanently deletes every token deployment that hasn't been explicitly
+ * saved within the retention window of its own deployedAt — the inverse of
+ * the wallet trash above: here doing nothing is what gets it deleted, not
+ * checking a box. Returns how many were deleted.
+ */
+export async function runTokenCleanup(): Promise<number> {
+  const cutoff = new Date(Date.now() - RETENTION_MS);
+  const expired = await prisma.tokenDeployment.findMany({
+    where: { savedForWatch: false, deployedAt: { lte: cutoff } },
+    select: { id: true, tokenAddress: true },
+  });
+
+  for (const { id, tokenAddress } of expired) {
+    try {
+      await deleteDeploymentCascade(id);
+      logger.info({ tokenAddress }, "trash: permanently deleted unsaved token deployment past 24h");
+    } catch (err) {
+      logger.error({ err, tokenAddress }, "trash: failed to delete token deployment");
+    }
+  }
+  return expired.length;
+}
+
+/** Runs both cleanups now (catching up on anything missed while the bot was down), then hourly. */
 export function startTrashCleanupLoop() {
   const run = () => {
-    void runTrashCleanup().catch((err) => logger.error({ err }, "trash cleanup loop failed"));
+    void runTrashCleanup().catch((err) => logger.error({ err }, "wallet trash cleanup loop failed"));
+    void runTokenCleanup().catch((err) => logger.error({ err }, "token cleanup loop failed"));
   };
   run();
   const interval = setInterval(run, 60 * 60 * 1000);

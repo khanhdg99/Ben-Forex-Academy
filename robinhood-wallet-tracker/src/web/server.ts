@@ -12,7 +12,15 @@ import {
   findClusterForWallet,
   setClusterStarred,
 } from "../db/fundingRepository.js";
-import { setWalletChecked, setWalletStarred, listStarredWallets } from "../db/repositories.js";
+import {
+  setWalletChecked,
+  setWalletStarred,
+  listStarredWallets,
+  setWalletDevFlag,
+  listDevWallets,
+  setDeploymentSaved,
+  listSavedDeployments,
+} from "../db/repositories.js";
 import { listTrashWallets, startTrashCleanupLoop } from "../db/trashRepository.js";
 import { investigateToken } from "../investigation/tokenInvestigator.js";
 
@@ -143,6 +151,38 @@ export function startWebServer() {
   app.get("/api/starred", async (_req, res) => {
     const wallets = await listStarredWallets();
     res.json(toJson(wallets));
+  });
+
+  app.put("/api/wallets/:address/devwallet", async (req, res) => {
+    const isDevWallet = req.body?.isDevWallet === true;
+    try {
+      const wallet = await setWalletDevFlag(req.params.address as `0x${string}`, isDevWallet);
+      res.json(toJson(wallet));
+    } catch (err) {
+      logger.error({ err, address: req.params.address }, "failed to set dev wallet flag");
+      res.status(500).json({ error: "failed to set dev wallet flag" });
+    }
+  });
+
+  app.get("/api/dev-wallets", async (_req, res) => {
+    const wallets = await listDevWallets();
+    res.json(toJson(wallets));
+  });
+
+  app.put("/api/deployments/:tokenAddress/saved", async (req, res) => {
+    const saved = req.body?.saved === true;
+    try {
+      const deployment = await setDeploymentSaved(req.params.tokenAddress, saved);
+      res.json(toJson(deployment));
+    } catch (err) {
+      logger.error({ err, tokenAddress: req.params.tokenAddress }, "failed to set deployment saved flag");
+      res.status(500).json({ error: "failed to set deployment saved flag" });
+    }
+  });
+
+  app.get("/api/deployments/saved", async (_req, res) => {
+    const deployments = await listSavedDeployments();
+    res.json(toJson(deployments));
   });
 
   app.get("/api/trash", async (_req, res) => {

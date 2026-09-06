@@ -24,6 +24,12 @@ model Wallet {
   /// (checked = reviewed/done; starred = important, keep watching).
   starred          Boolean   @default(false)
   starredAt        DateTime?
+  /// "I've personally verified this is a dev wallet" — a confirmed-good
+  /// source wallet worth following, gathered into its own "Ví Dev" section.
+  /// Independent of checked/starred, and exempt from the checked-wallet
+  /// trash auto-delete: a dev wallet is meant to stick around.
+  isDevWallet      Boolean   @default(false)
+  devWalletAt      DateTime?
 
   deployments   TokenDeployment[]
   scoreLogs     RiskScoreLog[]
@@ -32,6 +38,7 @@ model Wallet {
   @@index([fundingSource])
   @@index([latestRiskScore])
   @@index([starred])
+  @@index([isDevWallet])
 }
 
 model TokenDeployment {
@@ -44,6 +51,13 @@ model TokenDeployment {
   looksLikeErc20 Boolean  @default(false)
   name           String?
   symbol         String?
+  /// "I want to keep watching this token" — the inverse of Wallet.checked:
+  /// here NOT saving is what starts the clock. A deployment left unsaved
+  /// for 24h from deployedAt is permanently deleted (cascading its
+  /// liquidity/swap/score events) so the list doesn't fill up with tokens
+  /// nobody cared about.
+  savedForWatch  Boolean  @default(false)
+  savedAt        DateTime?
 
   liquidityEvents LiquidityEvent[]
   swapEvents      SwapEvent[]
@@ -51,6 +65,7 @@ model TokenDeployment {
 
   @@index([deployerAddress])
   @@index([deployedAt])
+  @@index([savedForWatch])
 }
 
 enum LiquidityEventType {

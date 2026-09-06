@@ -173,20 +173,24 @@ export async function listClusters() {
   });
 
   // The source address is a wallet like any other — surface whether *it*
-  // has been marked "đã check" so the card header can show the same red
-  // tick used everywhere else, even though a source doesn't always have
-  // its own Wallet row (it's only created lazily, e.g. on first check).
+  // has been marked "đã check" (card header red tick) or flagged as a
+  // confirmed dev wallet, even though a source doesn't always have its own
+  // Wallet row (it's only created lazily, e.g. on first check).
   const sourceWallets = await prisma.wallet.findMany({
     where: { address: { in: clusters.map((c) => c.sourceAddress) } },
-    select: { address: true, checked: true },
+    select: { address: true, checked: true, isDevWallet: true },
   });
-  const checkedByAddress = new Map(sourceWallets.map((w) => [w.address, w.checked]));
+  const walletByAddress = new Map(sourceWallets.map((w) => [w.address, w]));
 
   // A checked source has moved to the Trash section (see trashRepository.ts)
   // — drop it from the main grid rather than showing it dimmed in place.
   return clusters
-    .filter((c) => !checkedByAddress.get(c.sourceAddress))
-    .map((c) => ({ ...c, sourceChecked: false }));
+    .filter((c) => !walletByAddress.get(c.sourceAddress)?.checked)
+    .map((c) => ({
+      ...c,
+      sourceChecked: false,
+      sourceIsDevWallet: walletByAddress.get(c.sourceAddress)?.isDevWallet ?? false,
+    }));
 }
 
 /** Flips a cluster's "I need to watch this whole group" flag. */

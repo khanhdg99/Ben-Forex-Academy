@@ -235,6 +235,13 @@
   .star-btn svg { width: 16px; height: 16px; }
   .star-btn.starred { color: var(--yellow); }
   .star-btn.starred svg { fill: var(--yellow); }
+  .dev-btn {
+    background: none; border: 1px solid var(--border); cursor: pointer; padding: 0; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+    border-radius: 5px; font-size: 11px; color: var(--muted-2); transition: .1s;
+  }
+  .dev-btn:hover { border-color: var(--accent-2); color: var(--accent-2); }
+  .dev-btn.is-dev { background: var(--accent-2); border-color: var(--accent-2); color: #0b0e17; }
   .cell-actions { display: flex; align-items: center; gap: 7px; }
 
   tr.is-starred { background: rgba(224,185,79,0.05); }
@@ -309,9 +316,11 @@
     <nav class="subnav">
       <a href="#investigate">Kiểm tra token</a>
       <a href="#starred">⭐ Ví quan trọng</a>
+      <a href="#devwallets">🧑‍💻 Ví Dev</a>
       <a href="#clusters">Cụm ví</a>
       <a href="#watchlist">Watchlist</a>
       <a href="#deployments">Deployments</a>
+      <a href="#savedtokens">📌 Token đã lưu</a>
       <a href="#trash" class="subnav-muted">🗑 Đã xoá</a>
     </nav>
   </header>
@@ -361,6 +370,25 @@
       <div class="table-wrap">
         <table id="starred-table">
           <thead><tr><th style="width:36px"></th><th>Wallet</th><th>Score</th><th>Đã check?</th><th>Đánh dấu lúc</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="devwallets">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap" style="background:rgba(167,139,250,0.14); color:var(--accent-2); border-color:rgba(167,139,250,0.35)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></div>
+          <div>
+            <h2>🧑‍💻 Ví Dev</h2>
+            <div class="desc">Ví nguồn bạn đã tự xác nhận là dev thật — bấm nút "D" ở thẻ cụm ví để thêm vào đây</div>
+          </div>
+        </div>
+        <span class="count-pill" id="devwallets-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table id="devwallets-table">
+          <thead><tr><th style="width:36px"></th><th>Wallet</th><th>Score</th><th>Đánh dấu lúc</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -420,7 +448,30 @@
           <thead>
             <tr>
               <th style="width:36px"></th><th>Token</th><th>Deployer</th><th>Score</th><th>ERC-20</th>
-              <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Deploy lúc</th>
+              <th>Pool</th><th>Initial buy</th><th>Rug</th><th>Deploy lúc</th><th>Lưu?</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="savedtokens">
+      <div class="section-head">
+        <div class="section-title">
+          <div class="icon-wrap" style="background:rgba(224,185,79,0.14); color:var(--yellow); border-color:rgba(224,185,79,0.35)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg></div>
+          <div>
+            <h2>📌 Token đã lưu</h2>
+            <div class="desc">Token bạn bấm "Lưu" để tiếp tục theo dõi — token không lưu sẽ tự xoá sau 24h kể từ lúc deploy</div>
+          </div>
+        </div>
+        <span class="count-pill" id="savedtokens-count">0</span>
+      </div>
+      <div class="table-wrap">
+        <table id="savedtokens-table">
+          <thead>
+            <tr>
+              <th style="width:36px"></th><th>Token</th><th>Deployer</th><th>Score</th><th>Pool</th><th>Rug</th><th>Deploy lúc</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -493,6 +544,19 @@ async function toggleStarred(address, starred) {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ starred }),
+  });
+  refresh();
+}
+
+/** Marks a (usually source) wallet as a confirmed dev wallet — gathered into its own Ví Dev section, exempt from the checked-wallet trash timer. */
+function devButton(address, isDev) {
+  return `<button class="dev-btn ${isDev ? "is-dev" : ""}" title="Ví dev đã xác nhận — cho vào mục Ví Dev" onclick="event.stopPropagation(); toggleDevWallet('${address}', ${!isDev})">D</button>`;
+}
+async function toggleDevWallet(address, isDevWallet) {
+  await fetchJson(`/api/wallets/${address}/devwallet`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isDevWallet }),
   });
   refresh();
 }
@@ -588,6 +652,31 @@ async function loadStarred() {
       <td>${scoreRing(w.latestRiskScore)}</td>
       <td>${checkbox(w.checked, w.address)}</td>
       <td>${fmtTime(w.starredAt)}</td>
+    </tr>
+  `).join("");
+}
+
+let lastDevWalletsSignature = "";
+
+async function loadDevWallets() {
+  const wallets = await fetchJson("/api/dev-wallets");
+  document.getElementById("devwallets-count").textContent = wallets.length;
+  const tbody = document.querySelector("#devwallets-table tbody");
+
+  const signature = wallets.map((w) => `${w.address}:${w.latestRiskScore}:${w.devWalletAt}`).join("|");
+  if (signature === lastDevWalletsSignature && tbody.children.length > 0) return;
+  lastDevWalletsSignature = signature;
+
+  if (wallets.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">Chưa có ví dev nào — bấm nút "D" cạnh 1 ví nguồn bạn đã xác nhận để thêm vào đây</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = wallets.map((w) => `
+    <tr>
+      <td>${devButton(w.address, true)}</td>
+      <td>${addrLink(w.address)}</td>
+      <td>${scoreRing(w.latestRiskScore)}</td>
+      <td>${fmtTime(w.devWalletAt)}</td>
     </tr>
   `).join("");
 }
@@ -695,6 +784,7 @@ function clusterActionsHtml(c) {
   return `
     <span class="cell-actions">
       ${checkbox(c.sourceChecked, c.sourceAddress)}
+      ${devButton(c.sourceAddress, c.sourceIsDevWallet)}
       <button class="star-btn ${c.starred ? "starred" : ""}" title="Đánh dấu cả cụm cần để ý" onclick="event.stopPropagation(); toggleClusterStarred('${c.sourceAddress}', ${!c.starred})">${STAR_ICON}</button>
     </span>
     <span class="cc-badge">${c.walletCount} ví con</span>
@@ -863,7 +953,7 @@ async function loadDeployments() {
   const signature = deployments
     .map((d) => {
       const log = d.scoreLogs && d.scoreLogs[0];
-      return `${d.tokenAddress}:${d.deployer.checked}:${d.deployer.starred}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}`;
+      return `${d.tokenAddress}:${d.deployer.checked}:${d.deployer.starred}:${d.savedForWatch}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}`;
     })
     .join("|");
   if (signature === lastDeploymentsSignature && tbody.children.length > 0) return;
@@ -881,6 +971,12 @@ async function loadDeployments() {
     const log = d.scoreLogs && d.scoreLogs[0];
     const score = log ? log.score : 0;
     const rowId = `bd-${i}`;
+    const savedBadge = d.savedForWatch
+      ? `<span class="expiry-badge ok" style="background:var(--yellow-dim);color:var(--yellow)">Đã lưu</span>`
+      : (() => {
+          const b = expiryBadge(new Date(new Date(d.deployedAt).getTime() + 24 * 60 * 60 * 1000));
+          return `<span class="expiry-badge ${b.cls}">${b.label}</span>`;
+        })();
     return `
       <tr class="deployment-row ${d.deployer.checked ? "is-checked" : ""} ${d.deployer.starred ? "is-starred" : ""}" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'table-row' ? 'none' : 'table-row';">
         <td><span class="cell-actions">${checkbox(d.deployer.checked, d.deployerAddress)}${starButton(d.deployer.starred, d.deployerAddress)}</span></td>
@@ -892,12 +988,67 @@ async function loadDeployments() {
         <td>${badge("Buy", hasBuy)}</td>
         <td>${badge(hasRug ? "RUG" : "OK", hasRug, true)}</td>
         <td>${fmtTime(d.deployedAt)}</td>
+        <td onclick="event.stopPropagation()">
+          ${d.savedForWatch
+            ? `<button class="restore" style="background:var(--panel-3);color:var(--muted);border-color:var(--border)" onclick="toggleDeploymentSaved('${d.tokenAddress}', false)">Bỏ lưu</button>`
+            : `<button class="restore" onclick="toggleDeploymentSaved('${d.tokenAddress}', true)">Lưu</button>`}
+          <div style="margin-top:5px">${savedBadge}</div>
+        </td>
       </tr>
       <tr class="breakdown-row" id="${rowId}" style="display:none">
-        <td colspan="9">${breakdownHtml(log)}</td>
+        <td colspan="10">${breakdownHtml(log)}</td>
       </tr>
     `;
   }).join("");
+}
+
+let lastSavedTokensSignature = "";
+
+async function loadSavedTokens() {
+  const deployments = await fetchJson("/api/deployments/saved");
+  document.getElementById("savedtokens-count").textContent = deployments.length;
+  const tbody = document.querySelector("#savedtokens-table tbody");
+
+  const signature = deployments
+    .map((d) => {
+      const log = d.scoreLogs && d.scoreLogs[0];
+      return `${d.tokenAddress}:${log ? log.score : 0}:${(d.liquidityEvents || []).length}`;
+    })
+    .join("|");
+  if (signature === lastSavedTokensSignature && tbody.children.length > 0) return;
+  lastSavedTokensSignature = signature;
+
+  if (deployments.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">Chưa lưu token nào — bấm "Lưu" cạnh 1 token trong Deployment gần đây</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = deployments.map((d) => {
+    const events = d.liquidityEvents || [];
+    const hasPool = events.some((e) => e.type === "POOL_CREATED");
+    const hasRug = events.some((e) => e.type === "LIQUIDITY_REMOVED");
+    const log = d.scoreLogs && d.scoreLogs[0];
+    const score = log ? log.score : 0;
+    return `
+      <tr>
+        <td><button class="restore" style="background:var(--panel-3);color:var(--muted);border-color:var(--border)" onclick="toggleDeploymentSaved('${d.tokenAddress}', false)">Bỏ lưu</button></td>
+        <td>${addrLink(d.tokenAddress)}</td>
+        <td>${addrLink(d.deployerAddress)}</td>
+        <td>${scoreRing(score)}</td>
+        <td>${badge("Pool", hasPool)}</td>
+        <td>${badge(hasRug ? "RUG" : "OK", hasRug, true)}</td>
+        <td>${fmtTime(d.deployedAt)}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function toggleDeploymentSaved(tokenAddress, saved) {
+  await fetchJson(`/api/deployments/${tokenAddress}/saved`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ saved }),
+  });
+  refresh();
 }
 
 function formatUsd(value) {
@@ -1049,7 +1200,16 @@ async function refresh() {
   // wherever the new layout happens to put that pixel offset.
   const scrollY = window.scrollY;
   try {
-    await Promise.all([loadStats(), loadStarred(), loadTrash(), loadClusters(), loadWatchlist(), loadDeployments()]);
+    await Promise.all([
+      loadStats(),
+      loadStarred(),
+      loadDevWallets(),
+      loadTrash(),
+      loadClusters(),
+      loadWatchlist(),
+      loadDeployments(),
+      loadSavedTokens(),
+    ]);
     document.getElementById("meta").textContent = "cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
   } catch (err) {
     document.getElementById("meta").textContent = "lỗi tải dữ liệu — bot/API có đang chạy không?";

@@ -43,6 +43,44 @@ export async function listStarredWallets() {
   });
 }
 
+/** Flips a wallet's "confirmed dev wallet, follow this one" flag — independent of checked/starred. */
+export async function setWalletDevFlag(address: Address, isDevWallet: boolean) {
+  return prisma.wallet.upsert({
+    where: { address: address.toLowerCase() },
+    create: { address: address.toLowerCase(), isDevWallet, devWalletAt: isDevWallet ? new Date() : null },
+    update: { isDevWallet, devWalletAt: isDevWallet ? new Date() : null },
+  });
+}
+
+/** All confirmed dev wallets, newest-flagged first. */
+export async function listDevWallets() {
+  return prisma.wallet.findMany({
+    where: { isDevWallet: true },
+    orderBy: { devWalletAt: "desc" },
+  });
+}
+
+/** Flips a token deployment's "keep watching, don't auto-delete" flag. */
+export async function setDeploymentSaved(tokenAddress: string, saved: boolean) {
+  return prisma.tokenDeployment.update({
+    where: { tokenAddress: tokenAddress.toLowerCase() },
+    data: { savedForWatch: saved, savedAt: saved ? new Date() : null },
+  });
+}
+
+/** All deployments saved for ongoing watch, newest-saved first. */
+export async function listSavedDeployments() {
+  return prisma.tokenDeployment.findMany({
+    where: { savedForWatch: true },
+    include: {
+      deployer: true,
+      liquidityEvents: { orderBy: { occurredAt: "asc" } },
+      scoreLogs: { orderBy: { computedAt: "desc" }, take: 1 },
+    },
+    orderBy: { savedAt: "desc" },
+  });
+}
+
 export async function recordTokenDeployment(params: {
   tokenAddress: Address;
   deployerAddress: Address;
