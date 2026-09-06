@@ -213,6 +213,14 @@ starring, this one *does* protect against the trash timer: a dev-flagged
 wallet is skipped by the checked-wallet cleanup even if it's also checked,
 since the whole point is to keep it around for tracking.
 
+Every cluster member row and every Ví Dev row also carries a ✈️ button.
+There's no API to post a command into Bloom EVM's own Telegram chat on
+your behalf — that's a private chat only your own Telegram client can
+send into — so instead it opens Telegram's own documented share dialog
+(`https://t.me/share/url?...`) with the address pre-filled: one click,
+then you pick your Bloom EVM chat from the list and hit send to start
+copy-trading it.
+
 ### Token watch-list — save or lose it in 24h
 
 The reverse of the wallet trash: every new deployment starts a 24-hour
